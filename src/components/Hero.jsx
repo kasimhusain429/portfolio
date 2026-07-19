@@ -15,30 +15,30 @@ export default function Hero() {
     <section
       id="home"
       ref={sectionRef}
-      className="relative flex min-h-[120vh] flex-col items-center justify-center overflow-hidden"
+      className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden md:min-h-[120vh]"
       aria-label="Hero section"
     >
       <motion.div 
         style={{ y, opacity, scale }}
-        className="pointer-events-none sticky top-1/2 z-10 flex -translate-y-1/2 flex-col items-center text-center mix-blend-difference"
+        className="pointer-events-none sticky top-1/2 z-10 flex -translate-y-1/2 flex-col items-center px-4 text-center mix-blend-difference"
       >
         <h1 className="flex flex-col font-black uppercase leading-[0.85] tracking-tighter text-white">
-          <SplitText mode="reveal" stagger={0.06} className="text-[clamp(4rem,15vw,15rem)]">
+          <SplitText mode="reveal" stagger={0.06} className="text-[clamp(3rem,15vw,15rem)]">
             React
           </SplitText>
-          <SplitText mode="reveal" stagger={0.06} className="text-[clamp(4rem,15vw,15rem)] text-[#00E5FF]">
+          <SplitText mode="reveal" stagger={0.06} className="text-[clamp(3rem,15vw,15rem)] text-[#00E5FF]">
             Engineer
           </SplitText>
         </h1>
         
-        <div className="mt-8 flex gap-8">
-          <p className="font-mono text-xs font-medium uppercase tracking-[0.3em] text-white/50">
+        <div className="mt-6 flex flex-wrap justify-center gap-4 md:mt-8 md:gap-8">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.3em] text-white/50 sm:text-xs">
             Frontend
           </p>
-          <p className="font-mono text-xs font-medium uppercase tracking-[0.3em] text-white/50">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.3em] text-white/50 sm:text-xs">
             Developer
           </p>
-          <p className="font-mono text-xs font-medium uppercase tracking-[0.3em] text-white/50">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.3em] text-white/50 sm:text-xs">
             Kasim Husain
           </p>
         </div>
@@ -50,17 +50,17 @@ export default function Hero() {
         animate={{ opacity: 1 }}
         transition={{ delay: 2, duration: 1 }}
         style={{ opacity: useTransform(scrollYProgress, [0, 0.15], [1, 0]) }}
-        className="absolute bottom-10 left-1/2 flex -translate-x-1/2 flex-col items-center gap-3"
+        className="absolute bottom-6 left-1/2 flex -translate-x-1/2 flex-col items-center gap-3 md:bottom-10"
       >
         <span className="font-mono text-[10px] font-medium tracking-[0.3em] text-white/30">SCROLL</span>
-        <div className="relative h-16 w-[1px]">
+        <div className="relative h-12 w-[1px] md:h-16">
           {/* Track */}
           <div className="absolute inset-0 bg-white/10 rounded-full" />
           {/* Falling dot */}
           <motion.div
             className="absolute left-1/2 -translate-x-1/2 h-2 w-2 rounded-full bg-[#00E5FF] shadow-[0_0_8px_rgba(0,229,255,0.6)]"
             animate={{
-              y: [0, 56],
+              y: [0, 40],
               opacity: [1, 1, 0],
             }}
             transition={{

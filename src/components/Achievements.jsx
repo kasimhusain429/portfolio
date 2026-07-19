@@ -36,18 +36,18 @@ export default function Achievements() {
   const sectionRef = useRef(null)
 
   return (
-    <section id="achievements" ref={sectionRef} className="relative py-40">
-      <div className="mx-auto flex w-full max-w-7xl flex-col items-center px-6">
+    <section id="achievements" ref={sectionRef} className="relative py-20 sm:py-40">
+      <div className="mx-auto flex w-full max-w-7xl flex-col items-center px-4 sm:px-6">
         
         <div className="text-center">
           <p className="text-[10px] font-bold tracking-[0.4em] text-[#00E5FF] uppercase">Metrics</p>
-          <h2 className="mt-4 flex flex-col text-5xl font-black uppercase tracking-tighter text-white sm:text-7xl">
+          <h2 className="mt-4 flex flex-col text-4xl font-black uppercase tracking-tighter text-white sm:text-5xl md:text-7xl">
             <SplitText mode="char" stagger={0.03}>By The</SplitText>
             <SplitText mode="char" stagger={0.03} className="text-white/30">Numbers</SplitText>
           </h2>
         </div>
 
-        <div className="mt-32 grid w-full grid-cols-2 gap-8 md:grid-cols-4">
+        <div className="mt-16 grid w-full grid-cols-2 gap-4 sm:mt-32 sm:gap-8 md:grid-cols-4">
           {stats.map((stat, i) => (
             <motion.div 
               key={i}
@@ -55,13 +55,13 @@ export default function Achievements() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.8, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
-              className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-white/5 p-10 text-center backdrop-blur-xl transition-colors hover:border-[#00E5FF]/30 hover:bg-white/10"
+              className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-white/5 p-5 text-center backdrop-blur-xl transition-colors hover:border-[#00E5FF]/30 hover:bg-white/10 sm:p-10"
             >
-              <div className="flex items-baseline text-4xl font-black tracking-tighter text-white sm:text-6xl">
+              <div className="flex items-baseline text-3xl font-black tracking-tighter text-white sm:text-4xl md:text-6xl">
                 <Counter from={0} to={stat.value} duration={2.5} />
                 <span className="text-[#00E5FF]">{stat.suffix}</span>
               </div>
-              <div className="mt-4 text-xs font-bold uppercase tracking-widest text-white/40">
+              <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-white/40 sm:mt-4 sm:text-xs">
                 {stat.label}
               </div>
             </motion.div>

@@ -4,6 +4,10 @@
  * A single persistent <Canvas> overlays the entire page.
  * Individual 3D scenes are conditionally rendered based on scroll position.
  * This prevents multiple WebGL contexts (which crash mobile).
+ *
+ * Mobile strategy:
+ *   - Tier 2 mobile: render only HeroScene3D (lightweight)
+ *   - Tier 3 / no WebGL: return null (CSS fallbacks in each section)
  */
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
@@ -60,7 +64,7 @@ function useVisibleSections() {
   return visible
 }
 
-function SceneContents({ postProcessing, bloomIntensity }) {
+function SceneContents({ postProcessing, bloomIntensity, isMobile }) {
   const visible = useVisibleSections()
 
   return (
@@ -69,32 +73,37 @@ function SceneContents({ postProcessing, bloomIntensity }) {
       <ambientLight intensity={0.15} />
       <directionalLight position={[5, 5, 5]} intensity={0.3} />
 
-      {/* Conditionally render scenes based on scroll position */}
+      {/* Hero scene — always rendered (lightweight enough for mobile) */}
       <ErrorBoundary>
         <Suspense fallback={null}>
           {visible.has('home') && <HeroScene3D />}
         </Suspense>
       </ErrorBoundary>
 
-      <ErrorBoundary>
-        <Suspense fallback={null}>
-          {visible.has('skills') && <SkillConstellation3D />}
-        </Suspense>
-      </ErrorBoundary>
+      {/* Desktop-only heavy scenes — skip on mobile for performance */}
+      {!isMobile && (
+        <>
+          <ErrorBoundary>
+            <Suspense fallback={null}>
+              {visible.has('skills') && <SkillConstellation3D />}
+            </Suspense>
+          </ErrorBoundary>
 
-      <ErrorBoundary>
-        <Suspense fallback={null}>
-          {visible.has('projects') && <ProjectGallery3D />}
-        </Suspense>
-      </ErrorBoundary>
+          <ErrorBoundary>
+            <Suspense fallback={null}>
+              {visible.has('projects') && <ProjectGallery3D />}
+            </Suspense>
+          </ErrorBoundary>
 
-      <ErrorBoundary>
-        <Suspense fallback={null}>
-          {visible.has('contact') && <ContactPortal3D />}
-        </Suspense>
-      </ErrorBoundary>
+          <ErrorBoundary>
+            <Suspense fallback={null}>
+              {visible.has('contact') && <ContactPortal3D />}
+            </Suspense>
+          </ErrorBoundary>
+        </>
+      )}
 
-      {/* Post-processing — tier-gated */}
+      {/* Post-processing — tier-gated (disabled on mobile) */}
       {postProcessing && (
         <EffectComposer multisampling={0}>
           <Bloom
@@ -133,7 +142,7 @@ export default function SceneManager() {
         gl={{
           antialias: device.config.antialias,
           alpha: true,
-          powerPreference: 'high-performance',
+          powerPreference: device.isMobile ? 'low-power' : 'high-performance',
           stencil: false,
           depth: true,
         }}
@@ -143,6 +152,7 @@ export default function SceneManager() {
         <SceneContents
           postProcessing={device.config.postProcessing}
           bloomIntensity={device.config.bloomIntensity}
+          isMobile={device.isMobile}
         />
       </Canvas>
     </div>

@@ -2,8 +2,9 @@ import { useRef, useMemo, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Float, Edges } from '@react-three/drei'
 import * as THREE from 'three'
+import { useDevice } from '../../hooks/useDevice'
 
-/* ─── Infinite Grid (unchanged) ─────────────────────────── */
+/* ─── Infinite Grid (desktop only) ───────────────────────── */
 function InfiniteGrid() {
   const meshRef = useRef()
   const scrollRef = useRef(0)
@@ -82,11 +83,18 @@ function InfiniteGrid() {
 }
 
 /* ─── Morphing Icosahedron ───────────────────────────────── */
-function MorphingIcosahedron() {
+function MorphingIcosahedron({ isMobile }) {
   const meshRef = useRef()
   const wireRef = useRef()
   const groupRef = useRef()
   const mouseRef = useRef({ x: 0, y: 0, vx: 0, vy: 0, prevX: 0, prevY: 0 })
+
+  // Reduce geometry detail on mobile
+  const geoDetail = isMobile ? 12 : 24
+  const wireDetail = isMobile ? 4 : 6
+  const sphereSize = isMobile ? 1.8 : 2.2
+  const wireSize = isMobile ? 1.85 : 2.25
+  const coreSize = isMobile ? 1.4 : 1.8
 
   // Custom noise-driven displacement shader
   const shaderMaterial = useMemo(
@@ -97,7 +105,7 @@ function MorphingIcosahedron() {
         side: THREE.DoubleSide,
         uniforms: {
           uTime: { value: 0 },
-          uDistort: { value: 0.3 },
+          uDistort: { value: isMobile ? 0.2 : 0.3 },
           uMouseVelocity: { value: 0 },
           uColor1: { value: new THREE.Color('#020810') },
           uColor2: { value: new THREE.Color('#00E5FF') },
@@ -197,13 +205,16 @@ function MorphingIcosahedron() {
           }
         `,
       }),
-    []
+    [isMobile]
   )
 
   useEffect(() => {
     const onMove = (e) => {
-      const nx = (e.clientX / window.innerWidth) * 2 - 1
-      const ny = -(e.clientY / window.innerHeight) * 2 + 1
+      // Use first touch for touch devices
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY
+      const nx = (clientX / window.innerWidth) * 2 - 1
+      const ny = -(clientY / window.innerHeight) * 2 + 1
       mouseRef.current.vx = (nx - mouseRef.current.x) * 8
       mouseRef.current.vy = (ny - mouseRef.current.y) * 8
       mouseRef.current.x = nx
@@ -239,9 +250,10 @@ function MorphingIcosahedron() {
       0.1
     )
 
-    // Subtle tilt toward mouse
-    const targetRotX = mouseRef.current.y * 0.15 - progress * 0.5
-    const targetRotY = mouseRef.current.x * 0.15 + state.clock.elapsedTime * 0.08
+    // Subtle tilt toward mouse (reduced on mobile)
+    const tiltFactor = isMobile ? 0.08 : 0.15
+    const targetRotX = mouseRef.current.y * tiltFactor - progress * 0.5
+    const targetRotY = mouseRef.current.x * tiltFactor + state.clock.elapsedTime * 0.08
     groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetRotX, 0.06)
     groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, targetRotY, 0.06)
 
@@ -264,16 +276,16 @@ function MorphingIcosahedron() {
   })
 
   return (
-    <group ref={groupRef} position={[1.8, 0.3, -4]}>
+    <group ref={groupRef} position={[isMobile ? 0 : 1.8, 0.3, -4]}>
       <Float speed={1.5} rotationIntensity={0.08} floatIntensity={0.3}>
         {/* Solid morphing body */}
         <mesh ref={meshRef} material={shaderMaterial}>
-          <icosahedronGeometry args={[2.2, 24]} />
+          <icosahedronGeometry args={[sphereSize, geoDetail]} />
         </mesh>
 
         {/* Wireframe overlay — cyan accent lines */}
         <mesh ref={wireRef}>
-          <icosahedronGeometry args={[2.25, 6]} />
+          <icosahedronGeometry args={[wireSize, wireDetail]} />
           <meshBasicMaterial
             color="#00E5FF"
             wireframe
@@ -285,7 +297,7 @@ function MorphingIcosahedron() {
 
         {/* Inner glow core */}
         <mesh>
-          <icosahedronGeometry args={[1.8, 12]} />
+          <icosahedronGeometry args={[coreSize, isMobile ? 6 : 12]} />
           <meshBasicMaterial
             color="#00E5FF"
             transparent
@@ -301,6 +313,8 @@ function MorphingIcosahedron() {
 export default function HeroScene3D() {
   const { camera } = useThree()
   const groupRef = useRef()
+  const device = useDevice()
+  const isMobile = device?.isMobile || false
 
   useFrame(() => {
     const el = document.getElementById('home')
@@ -318,8 +332,9 @@ export default function HeroScene3D() {
 
   return (
     <group ref={groupRef}>
-      <InfiniteGrid />
-      <MorphingIcosahedron />
+      {/* InfiniteGrid is too shader-heavy for mobile */}
+      {!isMobile && <InfiniteGrid />}
+      <MorphingIcosahedron isMobile={isMobile} />
     </group>
   )
 }

@@ -3,6 +3,10 @@
  *
  * Detects GPU tier, mobile/desktop, touch support, and WebGL availability.
  * Returns a tier (1=high, 2=mid, 3=low) that controls 3D scene quality.
+ *
+ * Mobile tier strategy:
+ *   - Capable mobiles (WebGL2 + ≥4 cores) → tier 2 (simplified 3D)
+ *   - Low-end mobiles / no WebGL → tier 3 (CSS fallbacks only)
  */
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
@@ -18,6 +22,10 @@ function detectCapabilities() {
   const prefersReducedMotion = window.matchMedia?.(
     '(prefers-reduced-motion: reduce)'
   ).matches
+
+  // Screen size detection
+  const screenWidth = window.innerWidth
+  const isSmallScreen = screenWidth < 768
 
   // WebGL detection
   let webglAvailable = false
@@ -50,7 +58,14 @@ function detectCapabilities() {
   let tier = 2 // default mid
   if (prefersReducedMotion || !webglAvailable || isLowEndGPU) {
     tier = 3
-  } else if (isMobile || cores <= 2 || (!webgl2Available && dpr <= 1)) {
+  } else if (isMobile) {
+    // Capable mobiles with WebGL2 and decent CPU → tier 2 (simplified 3D)
+    if (webgl2Available && cores >= 4) {
+      tier = 2
+    } else {
+      tier = 3
+    }
+  } else if (cores <= 2 || (!webgl2Available && dpr <= 1)) {
     tier = 3
   } else if (cores >= 8 && webgl2Available && dpr >= 1.5 && !isMobile) {
     tier = 1
@@ -60,6 +75,7 @@ function detectCapabilities() {
     tier,
     isMobile,
     isTouch,
+    isSmallScreen,
     cores,
     dpr: Math.min(dpr, 2), // cap at 2x for R3F
     webglAvailable,
@@ -85,8 +101,8 @@ export const TIER_CONFIG = {
     particleCount: 2000,
     dpr: [1, 1.5],
     shadows: false,
-    postProcessing: true,
-    bloomIntensity: 0.4,
+    postProcessing: false,  // Disabled for tier 2 (includes mobile)
+    bloomIntensity: 0,
     antialias: false,
   },
   3: {
@@ -120,4 +136,13 @@ export function DeviceProvider({ children }) {
 
 export function useDevice() {
   return useContext(DeviceContext)
+}
+
+/**
+ * Convenience hook — returns true on mobile or small-screen devices.
+ * Components use this to swap layouts without needing the full device context.
+ */
+export function useIsMobile() {
+  const device = useDevice()
+  return device?.isMobile || device?.isSmallScreen || false
 }
