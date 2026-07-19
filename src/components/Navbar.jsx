@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion'
 import { FiMenu, FiX, FiDownload } from 'react-icons/fi'
-import ThemeToggle from './ThemeToggle'
+import MagneticButton from './ui/MagneticButton'
+import { useSmoothScroll } from '../providers/SmoothScrollProvider'
 
 const navLinks = [
-  { label: 'Home', href: '#home' },
-  { label: 'About', href: '#about' },
+  { label: 'Home',       href: '#home' },
+  { label: 'About',      href: '#about' },
   { label: 'Experience', href: '#experience' },
-  { label: 'Projects', href: '#projects' },
-  { label: 'Contact', href: '#contact' },
+  { label: 'Projects',   href: '#projects' },
+  { label: 'Contact',    href: '#contact' },
 ]
 
 function useScrollSpy(ids, offset = 120) {
@@ -36,26 +37,13 @@ export default function Navbar() {
   const ids = useMemo(() => navLinks.map((l) => l.href.replace('#', '')), [])
   const active = useScrollSpy(ids)
   const [open, setOpen] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
+  const smoothScroll = useSmoothScroll()
 
-  const [theme, setTheme] = useState(() => {
-    const saved = window.localStorage.getItem('theme')
-    if (saved === 'light' || saved === 'dark') return saved
-    return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
-  })
-
-  useEffect(() => {
-    const root = document.documentElement
-    theme === 'light' ? root.classList.add('light') : root.classList.remove('light')
-    window.localStorage.setItem('theme', theme)
-  }, [theme])
-
-  useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 20)
-    handler()
-    window.addEventListener('scroll', handler, { passive: true })
-    return () => window.removeEventListener('scroll', handler)
-  }, [])
+  /* Scroll-linked nav morphing */
+  const { scrollY } = useScroll()
+  const navBlur  = useTransform(scrollY, [0, 80], [8, 20])
+  const navBg    = useTransform(scrollY, [0, 80], ['rgba(255,255,255,0)', 'rgba(255,255,255,0.045)'])
+  const navBorderO = useTransform(scrollY, [0, 80], [0, 1])
 
   useEffect(() => {
     if (!open) return
@@ -64,17 +52,20 @@ export default function Navbar() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [open])
 
-  // Lock body scroll when mobile menu is open
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [open])
 
   const onNav = (href) => {
-    const id = href.replace('#', '')
-    const el = document.getElementById(id)
-    if (!el) return
-    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 88, behavior: 'smooth' })
+    const target = href.replace('#', '')
+    if (smoothScroll?.scrollTo) {
+      smoothScroll.scrollTo(`#${target}`, { offset: -88 })
+    } else {
+      const el = document.getElementById(target)
+      if (!el) return
+      window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 88, behavior: 'smooth' })
+    }
     setOpen(false)
   }
 
@@ -86,24 +77,27 @@ export default function Navbar() {
       className="fixed inset-x-0 top-0 z-50"
     >
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        <div
-          className={`mt-4 flex items-center justify-between rounded-2xl border border-(--border) bg-(--card) px-4 py-3 backdrop-blur-xl transition-shadow duration-300 ${
-            scrolled ? 'shadow-[0_12px_40px_-15px_rgba(0,0,0,0.35)]' : 'shadow-none'
-          }`}
+        <motion.div
+          style={{
+            backdropFilter: `blur(${navBlur}px)`,
+            WebkitBackdropFilter: `blur(${navBlur}px)`,
+            background: navBg,
+          }}
+          className="mt-4 flex items-center justify-between rounded-2xl border border-(--border) px-4 py-3 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.3)] transition-shadow duration-300"
         >
           {/* Logo */}
-          <button
+          <motion.button
             type="button"
             onClick={() => onNav('#home')}
-            className="group inline-flex items-center gap-2 rounded-xl px-2 py-1 transition"
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.97 }}
+            className="group inline-flex items-center gap-2 rounded-xl px-2 py-1"
           >
             <span className="text-sm font-bold tracking-tight">
-              <span className="bg-gradient-to-r from-indigo-400 via-cyan-300 to-purple-400 bg-clip-text text-transparent">
-                Kasim
-              </span>
+              <span className="gradient-text-animated">Kasim</span>
               <span className="text-(--muted)">.dev</span>
             </span>
-          </button>
+          </motion.button>
 
           {/* Desktop nav */}
           <nav className="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
@@ -129,30 +123,30 @@ export default function Navbar() {
             })}
           </nav>
 
-          {/* Desktop right actions */}
+          {/* Desktop right */}
           <div className="hidden items-center gap-2 md:flex">
-            <a
+            <motion.a
               href="/resume.pdf"
               download
+              whileHover={{ scale: 1.04, y: -1 }}
+              whileTap={{ scale: 0.97 }}
               className="inline-flex items-center gap-1.5 rounded-xl border border-(--border) bg-(--card) px-3 py-2 text-xs font-semibold text-(--fg) transition hover:bg-(--card-strong)"
               aria-label="Download resume"
             >
               <FiDownload size={13} />
               Resume
-            </a>
-            <ThemeToggle theme={theme} onToggle={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))} />
+            </motion.a>
           </div>
 
           {/* Mobile actions */}
           <div className="flex items-center gap-2 md:hidden">
-            <ThemeToggle theme={theme} onToggle={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))} />
             <motion.button
               type="button"
               onClick={() => setOpen((o) => !o)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-(--border) bg-(--card) text-(--fg) transition active:scale-[0.96]"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-(--border) bg-(--card) text-(--fg)"
               aria-label={open ? 'Close menu' : 'Open menu'}
               aria-expanded={open}
-              whileTap={{ scale: 0.94 }}
+              whileTap={{ scale: 0.92 }}
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
@@ -160,14 +154,14 @@ export default function Navbar() {
                   initial={{ opacity: 0, rotate: open ? -45 : 45, scale: 0.8 }}
                   animate={{ opacity: 1, rotate: 0, scale: 1 }}
                   exit={{ opacity: 0, rotate: open ? 45 : -45, scale: 0.8 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  transition={{ duration: 0.18 }}
                 >
                   {open ? <FiX size={18} /> : <FiMenu size={18} />}
                 </motion.span>
               </AnimatePresence>
             </motion.button>
           </div>
-        </div>
+        </motion.div>
 
         {/* Mobile menu */}
         <AnimatePresence>
@@ -187,11 +181,13 @@ export default function Navbar() {
                       key={l.href}
                       type="button"
                       onClick={() => onNav(l.href)}
-                      initial={{ opacity: 0, x: -8 }}
+                      initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: idx * 0.04, duration: 0.25, ease: 'easeOut' }}
+                      transition={{ delay: idx * 0.04, duration: 0.25 }}
                       className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
-                        isActive ? 'bg-(--card-strong) text-(--fg)' : 'text-(--muted) hover:bg-(--card-strong) hover:text-(--fg)'
+                        isActive
+                          ? 'bg-(--card-strong) text-(--fg)'
+                          : 'text-(--muted) hover:bg-(--card-strong) hover:text-(--fg)'
                       }`}
                     >
                       {l.label}

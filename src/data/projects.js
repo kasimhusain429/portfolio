@@ -7,7 +7,7 @@ export const projects = [
     category: 'Hospitality & Membership',
     tech: ['React', 'Next.js', 'Tailwind CSS'],
     // Moody, candlelit fine-dining interior — matches a London private members' club perfectly
-    image: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1200&q=85',
+    image: '/projects/clio.png',
     live: 'https://www.thehouseofclio.com',
     github: '',
     highlights: {
@@ -36,7 +36,7 @@ export const projects = [
     category: 'Marketing & Lead Gen',
     tech: ['React', 'Next.js', 'Tailwind CSS'],
     // Clean workspace with iMac and analytics data — signals digital marketing / growth agency work
-    image: 'https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?auto=format&fit=crop&w=1200&q=85',
+    image: '/projects/nxt.png',
     live: 'https://nxtdigitalagency.com',
     github: '',
     highlights: {
@@ -65,7 +65,7 @@ export const projects = [
     category: 'Coaching & Consulting',
     tech: ['React', 'Node.js', 'REST APIs'],
     // Man speaking / presenting confidently — coaching & speaking brand visual
-    image: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=1200&q=85',
+    image: '/projects/darryl.png',
     live: 'https://darrylmontgomery.com',
     github: '',
     highlights: {
@@ -94,7 +94,7 @@ export const projects = [
     category: 'E-commerce',
     tech: ['React', 'Tailwind CSS'],
     // Vibrant, richly-coloured Indian textiles / fabric detail — luxury ethnic fashion
-    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=85',
+    image: '/projects/ethnics.png',
     live: 'https://houseof-ethnics.vercel.app',
     github: '',
     highlights: {

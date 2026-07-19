@@ -1,207 +1,197 @@
-import { useMemo, useState } from 'react'
+import { useRef, useState } from 'react'
 import emailjs from '@emailjs/browser'
 import { AnimatePresence, motion } from 'framer-motion'
-import { FiGithub, FiLinkedin, FiMail, FiSend } from 'react-icons/fi'
+import { FiLinkedin, FiMail, FiSend } from 'react-icons/fi'
+import SplitText from './ui/SplitText'
 
-const toastMotion = {
-  initial: { opacity: 0, y: 10 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: 10 },
-}
+const links = [
+  { icon: FiMail,     label: 'Email',    value: 'kasimhusain260@gmail.com',  href: 'mailto:kasimhusain260@gmail.com' },
+  { icon: FiLinkedin, label: 'LinkedIn', value: 'linkedin.com/in/kasim-husain', href: 'https://www.linkedin.com/in/kasim-husain-6601071a8' },
+]
 
 export default function Contact() {
-  const [loading, setLoading] = useState(false)
-  const [toast, setToast] = useState(null)
-  const [values, setValues] = useState({ name: '', email: '', message: '' })
+  const [loading, setLoading]       = useState(false)
+  const [notice,  setNotice]        = useState(null)
+  const [values,  setValues]        = useState({ name: '', email: '', message: '' })
+  const [focused, setFocused]       = useState(null)
 
-  const links = useMemo(
-    () => [
-      { icon: FiMail, label: 'Email', value: 'kasimhusain260@gmail.com', href: 'mailto:kasimhusain260@gmail.com' },
-      { icon: FiLinkedin, label: 'LinkedIn', value: 'linkedin.com/in/kasim-husain', href: 'https://www.linkedin.com/in/kasim-husain-6601071a8?utm_source=share_via&utm_content=profile&utm_medium=member_ios' },
-      // { icon: FiGithub, label: 'GitHub', value: 'github.com/yourname', href: 'https://github.com' },
-    ],
-    [],
-  )
+  const show = (type, message) => {
+    setNotice({ type, message })
+    setTimeout(() => setNotice(null), 4400)
+  }
 
   const onSubmit = async (e) => {
     e.preventDefault()
     if (loading) return
-
-    const templateParams = {
-      name: values.name.trim(),
-      email: values.email.trim(),
-      subject: 'Portfolio Inquiry',
-      message: values.message.trim(),
-      reply_to: values.email.trim(),
-    }
-
-    if (import.meta.env.DEV) {
-      console.log('[EmailJS] templateParams', templateParams)
-    }
-
-    if (!templateParams.name || !templateParams.email || !templateParams.message) {
-      setToast({ type: 'error', message: 'Please fill in name, email, and message.' })
-      setTimeout(() => setToast(null), 4200)
+    const { name, email, message } = values
+    if (!name.trim() || !email.trim() || !message.trim()) {
+      show('error', 'Please fill in all fields.')
       return
     }
-
-    const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID
-    const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID
-    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
-
-    if (!serviceId || !templateId || !publicKey) {
-      setToast({ type: 'error', message: 'EmailJS keys missing. Add VITE_EMAILJS_* to your .env file.' })
-      setTimeout(() => setToast(null), 4200)
+    const svc = import.meta.env.VITE_EMAILJS_SERVICE_ID
+    const tpl = import.meta.env.VITE_EMAILJS_TEMPLATE_ID
+    const key = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+    if (!svc || !tpl || !key) {
+      show('error', 'EmailJS keys missing. Add VITE_EMAILJS_* to your .env file.')
       return
     }
-
     setLoading(true)
     try {
-      await emailjs.send(serviceId, templateId, templateParams, { publicKey })
+      await emailjs.send(svc, tpl, { name: name.trim(), email: email.trim(), message: message.trim(), reply_to: email.trim() }, { publicKey: key })
       setValues({ name: '', email: '', message: '' })
-      setToast({ type: 'success', message: 'Message sent. I’ll reply soon.' })
-    } catch (err) {
-      if (import.meta.env.DEV) {
-        console.error('[EmailJS] send failed', err)
-      }
-      setToast({ type: 'error', message: 'Failed to send. Please try again in a moment.' })
+      show('success', "Message sent — I'll reply within 24 hours.")
+    } catch {
+      show('error', 'Failed to send. Please try again in a moment.')
     } finally {
       setLoading(false)
-      setTimeout(() => setToast(null), 4200)
     }
   }
 
   return (
-    <section id="contact" className="py-20">
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-120px' }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-        >
-          <p className="text-xs font-semibold tracking-widest text-(--muted)">CONTACT</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-(--fg) sm:text-4xl">
-            Let&apos;s build <span className="text-(--muted)">something great</span>
+    <section id="contact" className="relative min-h-[120vh] py-32 flex items-center justify-center overflow-hidden pointer-events-none">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#050505] z-0 pointer-events-none" />
+      
+      <div className="mx-auto w-full max-w-6xl px-6 relative z-10 pointer-events-auto">
+        <div className="text-center mb-20">
+          <p className="text-[10px] font-bold tracking-[0.4em] text-[#00E5FF] uppercase">Initiate Sequence</p>
+          <h2 className="mt-4 flex flex-col items-center text-5xl font-black uppercase tracking-tighter text-white sm:text-7xl mix-blend-difference">
+            <SplitText mode="char" stagger={0.03}>Let's</SplitText>
+            <SplitText mode="char" stagger={0.03} className="text-[#00E5FF]">Connect</SplitText>
           </h2>
-        </motion.div>
+        </div>
 
-        <div className="relative mt-10 grid gap-6 md:grid-cols-2">
-          <div className="rounded-2xl border border-(--border) bg-(--card) p-6 shadow-(--shadow) backdrop-blur">
-            <div className="text-sm font-semibold text-(--fg)">Contact</div>
-            <p className="mt-2 text-sm leading-relaxed text-(--muted)">
-              Tell me about your project, timeline, and what “success” looks like. I’ll respond within 24–48
-              hours.
+        <div className="grid gap-12 md:grid-cols-5 items-start">
+          
+          {/* Info Side */}
+          <div className="md:col-span-2 space-y-8">
+            <p className="text-sm font-medium leading-relaxed text-white/50">
+              Open to frontend roles and freelance projects. Whether it's a new product, or a full-time opportunity — I'm always happy to chat.
             </p>
 
-            <div className="mt-6 grid gap-3">
+            <div className="space-y-4">
               {links.map((l) => {
                 const Icon = l.icon
                 return (
-                  <a
+                  <motion.a
                     key={l.label}
                     href={l.href}
                     target={l.href.startsWith('http') ? '_blank' : undefined}
                     rel={l.href.startsWith('http') ? 'noreferrer' : undefined}
-                    className="group flex items-center justify-between gap-3 rounded-2xl border border-(--border) bg-(--card) px-4 py-3 text-sm text-(--muted) transition hover:bg-(--card-strong)"
+                    whileHover={{ x: 10 }}
+                    className="group flex items-center gap-4 rounded-xl border border-white/5 bg-white/5 px-5 py-4 transition-all hover:bg-white/10 hover:border-[#00E5FF]/30"
                   >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-(--border) bg-(--card)">
-                        <Icon className="text-(--muted) transition group-hover:-rotate-6" />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-xs text-(--muted)">{l.label}</div>
-                        <div className="truncate font-medium text-(--fg)">{l.value}</div>
-                      </div>
+                    <Icon size={18} className="text-white/40 group-hover:text-[#00E5FF] transition-colors" />
+                    <div>
+                      <div className="text-[10px] uppercase tracking-widest font-bold text-white/40">{l.label}</div>
+                      <div className="text-sm font-bold text-white mt-0.5">{l.value}</div>
                     </div>
-                    <span className="h-8 w-8 rounded-xl bg-linear-to-r from-indigo-500/20 via-cyan-400/15 to-purple-500/20 opacity-0 blur transition duration-300 group-hover:opacity-100" />
-                  </a>
+                  </motion.a>
                 )
               })}
             </div>
+            
+            <div className="inline-flex items-center gap-3 rounded-full border border-[#00E5FF]/30 bg-[#00E5FF]/10 px-5 py-2.5">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#00E5FF] opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00E5FF]" />
+              </span>
+              <span className="text-xs font-bold uppercase tracking-widest text-[#00E5FF]">Available Now</span>
+            </div>
           </div>
 
-          <div className="rounded-2xl border border-(--border) bg-(--card) p-6 shadow-(--shadow) backdrop-blur">
-            <div className="text-sm font-semibold text-(--fg)">Send a message</div>
-            <form onSubmit={onSubmit} className="mt-5 grid gap-4">
-              <label className="grid gap-2">
-                <span className="text-xs font-medium text-(--muted)">Name</span>
-                <input
-                  name="name"
-                  required
-                  value={values.name}
-                  onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
-                  className="h-11 rounded-2xl border border-(--border) bg-(--card) px-4 text-sm text-(--fg) outline-none transition focus:bg-(--card-strong)"
-                  placeholder="Your name"
-                />
-              </label>
+          {/* Form Side */}
+          <div className="md:col-span-3">
+            <form onSubmit={onSubmit} noValidate className="space-y-5 rounded-2xl border border-white/5 bg-white/5 p-8 backdrop-blur-xl">
+              {[
+                { key: 'name',    label: 'Name',    type: 'text',  placeholder: 'YOUR NAME' },
+                { key: 'email',   label: 'Email',   type: 'email', placeholder: 'YOU@DOMAIN.COM' },
+              ].map(({ key, label, type, placeholder }) => (
+                <div key={key} className="relative">
+                  <input
+                    id={`contact-${key}`}
+                    name={key}
+                    type={type}
+                    required
+                    value={values[key]}
+                    onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
+                    onFocus={() => setFocused(key)}
+                    onBlur={() => setFocused(null)}
+                    className="h-14 w-full rounded-xl border border-white/10 bg-black/40 px-5 font-mono text-sm font-medium text-white placeholder-white/20 outline-none transition focus:border-[#00E5FF]/50 focus:bg-white/5"
+                    placeholder={placeholder}
+                  />
+                  {/* Glowing bottom border — expands from center on focus */}
+                  <div className="absolute bottom-0 left-0 right-0 h-[2px] flex justify-center overflow-hidden rounded-b-xl">
+                    <div
+                      className="h-full bg-[#00E5FF] shadow-[0_0_10px_rgba(0,229,255,0.5)] transition-all duration-500 ease-out"
+                      style={{
+                        width: focused === key ? '100%' : '0%',
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
 
-              <label className="grid gap-2">
-                <span className="text-xs font-medium text-(--muted)">Email</span>
-                <input
-                  name="email"
-                  type="email"
-                  required
-                  value={values.email}
-                  onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
-                  className="h-11 rounded-2xl border border-(--border) bg-(--card) px-4 text-sm text-(--fg) outline-none transition focus:bg-(--card-strong)"
-                  placeholder="you@domain.com"
-                />
-              </label>
-
-              <label className="grid gap-2">
-                <span className="text-xs font-medium text-(--muted)">Message</span>
+              <div className="relative">
                 <textarea
+                  id="contact-message"
                   name="message"
                   required
                   rows={5}
                   value={values.message}
                   onChange={(e) => setValues((v) => ({ ...v, message: e.target.value }))}
-                  className="rounded-2xl border border-(--border) bg-(--card) px-4 py-3 text-sm text-(--fg) outline-none transition focus:bg-(--card-strong)"
-                  placeholder="What are we building?"
+                  onFocus={() => setFocused('message')}
+                  onBlur={() => setFocused(null)}
+                  className="w-full resize-none rounded-xl border border-white/10 bg-black/40 p-5 font-mono text-sm font-medium text-white placeholder-white/20 outline-none transition focus:border-[#00E5FF]/50 focus:bg-white/5"
+                  placeholder="YOUR MESSAGE..."
                 />
-              </label>
+                <div className="absolute bottom-0 left-0 right-0 h-[2px] flex justify-center overflow-hidden rounded-b-xl">
+                  <div
+                    className="h-full bg-[#00E5FF] shadow-[0_0_10px_rgba(0,229,255,0.5)] transition-all duration-500 ease-out"
+                    style={{
+                      width: focused === 'message' ? '100%' : '0%',
+                    }}
+                  />
+                </div>
+              </div>
 
-              <button
+              <motion.button
                 type="submit"
                 disabled={loading}
-                className="group inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-indigo-500 via-cyan-500 to-purple-500 px-5 text-sm font-semibold text-slate-950 shadow-[0_18px_50px_-20px_rgba(99,102,241,0.8)] transition hover:brightness-110 disabled:opacity-60"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="group relative w-full overflow-hidden rounded-xl bg-[#00E5FF] py-4 text-xs font-black uppercase tracking-widest text-black transition-all disabled:opacity-60"
               >
-                {loading ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" />
-                    Sending...
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-2">
-                    Send Message <FiSend className="transition group-hover:translate-x-0.5" />
-                  </span>
-                )}
-              </button>
-
-              {/* <p className="text-xs text-(--muted)">
-                EmailJS is used for delivery. Add keys in <code className="text-(--fg)">.env</code>.
-              </p> */}
+                {/* Gradient sweep on hover */}
+                <div
+                  className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full"
+                />
+                <span className="relative inline-flex items-center justify-center gap-3 font-mono">
+                  {loading ? 'TRANSMITTING...' : 'SEND MESSAGE'} 
+                  {!loading && <FiSend size={14} />}
+                </span>
+              </motion.button>
             </form>
           </div>
-
-          <AnimatePresence>
-            {toast && (
-              <motion.div
-                {...toastMotion}
-                transition={{ duration: 0.28, ease: 'easeOut' }}
-                className={`fixed bottom-6 right-6 z-70 max-w-[340px] rounded-2xl border px-4 py-3 text-sm shadow-[0_18px_55px_-35px_rgba(0,0,0,0.9)] backdrop-blur ${
-                  toast.type === 'success'
-                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
-                    : 'border-rose-400/20 bg-rose-500/10 text-rose-100'
-                }`}
-              >
-                {toast.message}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          
         </div>
       </div>
+
+      <AnimatePresence>
+        {notice && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className={`fixed bottom-10 right-10 z-[70] max-w-xs rounded-xl border px-6 py-4 text-xs font-bold uppercase tracking-widest backdrop-blur-xl ${
+              notice.type === 'success'
+                ? 'border-[#00E5FF]/30 bg-[#00E5FF]/10 text-[#00E5FF]'
+                : 'border-rose-400/30 bg-rose-500/10 text-rose-400'
+            }`}
+          >
+            {notice.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   )
 }
