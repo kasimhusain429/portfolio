@@ -8,7 +8,7 @@
  *   - Capable mobiles (WebGL2 + ≥4 cores) → tier 2 (simplified 3D)
  *   - Low-end mobiles / no WebGL → tier 3 (CSS fallbacks only)
  */
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useMemo, useState } from 'react'
 
 const DeviceContext = createContext(null)
 
@@ -56,7 +56,7 @@ function detectCapabilities() {
 
   // Determine tier
   let tier = 2 // default mid
-  if (prefersReducedMotion || !webglAvailable || isLowEndGPU) {
+  if (!webglAvailable || isLowEndGPU) {
     tier = 3
   } else if (isMobile) {
     // Capable mobiles with WebGL2 and decent CPU → tier 2 (simplified 3D)
@@ -88,7 +88,7 @@ function detectCapabilities() {
 /**
  * Tier-based configuration for 3D scenes.
  */
-export const TIER_CONFIG = {
+const TIER_CONFIG = {
   1: {
     particleCount: 5000,
     dpr: [1, 2],
@@ -116,11 +116,8 @@ export const TIER_CONFIG = {
 }
 
 export function DeviceProvider({ children }) {
-  const [capabilities, setCapabilities] = useState(null)
-
-  useEffect(() => {
-    setCapabilities(detectCapabilities())
-  }, [])
+  // detected once, synchronously: this is a client-only app, so window is always there
+  const [capabilities] = useState(detectCapabilities)
 
   const value = useMemo(() => {
     if (!capabilities) return null
@@ -134,15 +131,8 @@ export function DeviceProvider({ children }) {
   return <DeviceContext.Provider value={value}>{children}</DeviceContext.Provider>
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- the hook belongs with its provider
 export function useDevice() {
   return useContext(DeviceContext)
 }
 
-/**
- * Convenience hook — returns true on mobile or small-screen devices.
- * Components use this to swap layouts without needing the full device context.
- */
-export function useIsMobile() {
-  const device = useDevice()
-  return device?.isMobile || device?.isSmallScreen || false
-}

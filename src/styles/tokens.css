@@ -1,0 +1,233 @@
+/**
+ * Design tokens: "Bloom Spectrum".
+ *
+ * Single source of truth for colour. Raw hex values live ONLY here and in
+ * src/lib/palette.js (the mirror used by WebGL, SVG art and data files);
+ * `npm run check:tokens` fails if the two drift or a hex leaks into a component.
+ *
+ * Layers
+ *   1. Palette      --color-{ink,paper,iris,orchid,coral,marigold,teal}-*
+ *   2. Section hue  --hue-300…700, swapped per section with data-hue="…"
+ *                   (utilities: text-hue-400, bg-hue-500/20, from-hue-600 …)
+ *   3. Semantic     --bg / --fg / --muted / --border / --focus
+ *   4. Gradients    --grad-* (static) and bg-night / bg-glow (follow the hue)
+ */
+
+@theme {
+  /* Drop Tailwind's default palette so only tokens can be used */
+  --color-*: initial;
+
+  /* Dark surfaces */
+  --color-ink-950: #0a0820;
+  --color-ink-900: #100d2e;
+  --color-ink-800: #1a1644;
+  --color-ink-700: #2a2468;
+
+  /* Light surfaces and the inks that sit on them */
+  --color-paper: #f8f4ee;
+  --color-paper-hi: #fdfbf8;
+  --color-paper-2: #ede8fa;
+  --color-ink: #18144f;
+  --color-ink-soft: #4b4783;
+
+  /* Text on dark: secondary and tertiary (AA on ink-900 and ink-800) */
+  --color-mist: #cfcbf2;
+  --color-haze: #a9a4db;
+
+  /* Iris: primary */
+  --color-iris-300: #c2b6ff;
+  --color-iris-400: #9b8aff;
+  --color-iris-500: #7357ff;
+  --color-iris-600: #5b3ff0;
+  --color-iris-700: #4329c9;
+
+  /* Orchid: secondary */
+  --color-orchid-300: #f5b0f0;
+  --color-orchid-400: #ee86e4;
+  --color-orchid-500: #dc57d0;
+  --color-orchid-600: #b033a9;
+  --color-orchid-700: #8f2589;
+
+  /* Coral: accent */
+  --color-coral-300: #ffbbae;
+  --color-coral-400: #ff9482;
+  --color-coral-500: #ff6f5b;
+  --color-coral-600: #e8503f;
+  --color-coral-700: #b93323;
+
+  /* Marigold: accent */
+  --color-marigold-300: #ffe79a;
+  --color-marigold-400: #ffd25a;
+  --color-marigold-500: #ffb927;
+  --color-marigold-600: #e89a0c;
+  --color-marigold-700: #945907;
+
+  /* Teal: support, also success */
+  --color-teal-300: #9af0e3;
+  --color-teal-400: #4fdcc8;
+  --color-teal-500: #1bc4ae;
+  --color-teal-600: #0e9c8d;
+  --color-teal-700: #0a746b;
+
+  /* Semantic */
+  --color-focus: #7357ff;
+  --color-success: #4fdcc8;
+  --color-danger: #ff9482;
+
+  /* Fonts (unchanged) */
+  --font-display: 'Clash Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Satoshi', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-hand: 'Caveat', 'Segoe Print', cursive;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Motion (mirrors src/lib/motion.js) */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.7, 0, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --dur-micro: 200ms;
+  --dur-fast: 350ms;
+  --dur-base: 600ms;
+  --dur-slow: 900ms;
+
+  /* Type scale: one step per role, fluid between 360px and 1920px.
+     Utilities: text-eyebrow, text-caption, text-body-sm, text-body, text-lead, text-h3, text-h2-pin, text-h2 */
+  --text-eyebrow: 0.75rem;
+  --text-eyebrow--line-height: 1.2;
+  --text-eyebrow--letter-spacing: 0.24em;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.45;
+  --text-body-sm: 0.9375rem;
+  --text-body-sm--line-height: 1.6;
+  --text-body: clamp(1rem, 0.97rem + 0.15vw, 1.0625rem);
+  --text-body--line-height: 1.65;
+  --text-lead: clamp(1.0625rem, 0.99rem + 0.32vw, 1.25rem);
+  --text-lead--line-height: 1.55;
+  --text-h3: clamp(1.6rem, 1.38rem + 0.9vw, 2.25rem);
+  --text-h3--line-height: 1.04;
+  --text-h3--letter-spacing: -0.02em;
+  --text-h2-pin: clamp(2.2rem, 1.75rem + 1.9vw, 3.75rem);
+  --text-h2-pin--line-height: 0.95;
+  --text-h2-pin--letter-spacing: -0.03em;
+  --text-h2: clamp(2.6rem, 1.6rem + 4.2vw, 5.5rem);
+  --text-h2--line-height: 0.93;
+  --text-h2--letter-spacing: -0.035em;
+
+  /* Spacing rhythm: section padding scales with the viewport */
+  --spacing-section: clamp(5rem, 3.2rem + 6vw, 9.5rem);
+  --spacing-gutter: clamp(1.25rem, 0.6rem + 2.6vw, 3rem);
+}
+
+/* Utilities that read the CURRENT section hue (inline so they resolve per element) */
+@theme inline {
+  --color-hue-300: var(--hue-300);
+  --color-hue-400: var(--hue-400);
+  --color-hue-500: var(--hue-500);
+  --color-hue-600: var(--hue-600);
+  --color-hue-700: var(--hue-700);
+
+  --shadow-card: 0 34px 60px -34px color-mix(in srgb, var(--color-ink) 55%, transparent),
+    0 10px 24px -14px color-mix(in srgb, var(--hue-500) 35%, transparent);
+  --shadow-lift: 0 18px 40px -16px color-mix(in srgb, var(--color-ink-950) 90%, transparent);
+  --shadow-float: 0 40px 70px -30px color-mix(in srgb, var(--color-ink-950) 95%, transparent);
+  --shadow-glow: 0 14px 30px -14px color-mix(in srgb, var(--hue-500) 80%, transparent);
+  --shadow-glow-lg: 0 18px 44px -14px color-mix(in srgb, var(--hue-500) 95%, transparent);
+  --shadow-chip: 0 6px 16px -6px color-mix(in srgb, var(--hue-400) 90%, transparent);
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Default hue: iris. Sections override with data-hue. */
+  --hue-300: var(--color-iris-300);
+  --hue-400: var(--color-iris-400);
+  --hue-500: var(--color-iris-500);
+  --hue-600: var(--color-iris-600);
+  --hue-700: var(--color-iris-700);
+
+  /* Semantic roles (dark theme; paper surfaces set their own ink) */
+  --bg: var(--color-ink-900);
+  --fg: var(--color-paper);
+  --muted: var(--color-mist);
+  --border: color-mix(in srgb, var(--color-iris-300) 18%, transparent);
+  --ring: color-mix(in srgb, var(--color-focus) 55%, transparent);
+
+  /* Static gradients (do not depend on the section hue) */
+  --grad-spectrum: linear-gradient(110deg, var(--color-iris-500), var(--color-orchid-500) 38%, var(--color-coral-500) 70%, var(--color-marigold-500));
+  --grad-spectrum-text: linear-gradient(100deg, var(--color-iris-300), var(--color-orchid-400) 40%, var(--color-coral-400) 72%, var(--color-marigold-400));
+  --grad-action: linear-gradient(135deg, var(--color-iris-600), var(--color-orchid-600));
+  --grad-dawn: linear-gradient(180deg, var(--color-ink-900) 0%, var(--color-ink-900) 30%, var(--color-iris-700) 50%, var(--color-orchid-500) 64%, var(--color-coral-400) 78%, var(--color-marigold-300) 91%, var(--color-paper) 100%);
+  --grad-paper: linear-gradient(180deg, var(--color-paper-2) 0%, var(--color-paper) 55%, var(--color-iris-300) 100%);
+}
+
+/* One dominant hue per section. Same token names everywhere: text-hue-400 etc. */
+[data-hue='iris'] {
+  --hue-300: var(--color-iris-300);
+  --hue-400: var(--color-iris-400);
+  --hue-500: var(--color-iris-500);
+  --hue-600: var(--color-iris-600);
+  --hue-700: var(--color-iris-700);
+}
+[data-hue='orchid'] {
+  --hue-300: var(--color-orchid-300);
+  --hue-400: var(--color-orchid-400);
+  --hue-500: var(--color-orchid-500);
+  --hue-600: var(--color-orchid-600);
+  --hue-700: var(--color-orchid-700);
+}
+[data-hue='coral'] {
+  --hue-300: var(--color-coral-300);
+  --hue-400: var(--color-coral-400);
+  --hue-500: var(--color-coral-500);
+  --hue-600: var(--color-coral-600);
+  --hue-700: var(--color-coral-700);
+}
+[data-hue='marigold'] {
+  --hue-300: var(--color-marigold-300);
+  --hue-400: var(--color-marigold-400);
+  --hue-500: var(--color-marigold-500);
+  --hue-600: var(--color-marigold-600);
+  --hue-700: var(--color-marigold-700);
+}
+[data-hue='teal'] {
+  --hue-300: var(--color-teal-300);
+  --hue-400: var(--color-teal-400);
+  --hue-500: var(--color-teal-500);
+  --hue-600: var(--color-teal-600);
+  --hue-700: var(--color-teal-700);
+}
+
+/* Hue-aware backdrops: real utilities so --hue-* resolves on the element itself */
+@utility bg-night {
+  background-image: linear-gradient(
+    180deg,
+    var(--color-ink-900) 0%,
+    color-mix(in oklab, var(--color-ink-900) 80%, var(--hue-600)) 58%,
+    var(--color-ink-950) 100%
+  );
+}
+@utility bg-glow {
+  background-image: radial-gradient(closest-side, color-mix(in srgb, var(--hue-500) 38%, transparent), transparent);
+}
+@utility bg-hue-gradient {
+  background-image: linear-gradient(135deg, var(--hue-600), var(--hue-400));
+}
+@utility bg-hue-text {
+  background-image: linear-gradient(100deg, var(--hue-300), var(--color-paper) 55%, var(--hue-400));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+@utility bg-spectrum {
+  background-image: var(--grad-spectrum);
+}
+@utility bg-spectrum-text {
+  background-image: var(--grad-spectrum-text);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+@utility bg-action {
+  background-image: var(--grad-action);
+}

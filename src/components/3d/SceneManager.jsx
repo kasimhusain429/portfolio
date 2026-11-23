@@ -11,16 +11,16 @@
  */
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { Preload } from '@react-three/drei'
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
+import { PerformanceMonitor, Preload } from '@react-three/drei'
 import { useDevice } from '../../hooks/useDevice'
 import { ErrorBoundary } from '../ui/ErrorBoundary'
+import { useBloom } from '../../lib/bloomStore'
 
 // Lazy-load heavy 3D scenes
-const HeroScene3D = lazy(() => import('./HeroScene3D'))
-const SkillConstellation3D = lazy(() => import('./SkillConstellation3D'))
-const ContactPortal3D = lazy(() => import('./ContactPortal3D'))
-const ProjectGallery3D = lazy(() => import('./ProjectGallery3D'))
+// Start fetching the hero scene immediately (it is visible on first paint)
+const heroSceneImport = import('./HeroScene3D')
+const HeroScene3D = lazy(() => heroSceneImport)
+const InkRoots = lazy(() => import('./InkRoots'))
 
 /**
  * Tracks which sections are near the viewport so we only render
@@ -64,7 +64,7 @@ function useVisibleSections() {
   return visible
 }
 
-function SceneContents({ postProcessing, bloomIntensity, isMobile }) {
+function SceneContents() {
   const visible = useVisibleSections()
 
   return (
@@ -80,42 +80,12 @@ function SceneContents({ postProcessing, bloomIntensity, isMobile }) {
         </Suspense>
       </ErrorBoundary>
 
-      {/* Desktop-only heavy scenes — skip on mobile for performance */}
-      {!isMobile && (
-        <>
-          <ErrorBoundary>
-            <Suspense fallback={null}>
-              {visible.has('skills') && <SkillConstellation3D />}
-            </Suspense>
-          </ErrorBoundary>
+      {/* About: Ink Bloom layer (HUD pass, also on mobile) */}
+      <ErrorBoundary>
+        <Suspense fallback={null}>{visible.has('about') && <InkRoots />}</Suspense>
+      </ErrorBoundary>
 
-          <ErrorBoundary>
-            <Suspense fallback={null}>
-              {visible.has('projects') && <ProjectGallery3D />}
-            </Suspense>
-          </ErrorBoundary>
-
-          <ErrorBoundary>
-            <Suspense fallback={null}>
-              {visible.has('contact') && <ContactPortal3D />}
-            </Suspense>
-          </ErrorBoundary>
-        </>
-      )}
-
-      {/* Post-processing — tier-gated (disabled on mobile) */}
-      {postProcessing && (
-        <EffectComposer multisampling={0}>
-          <Bloom
-            intensity={bloomIntensity}
-            luminanceThreshold={0.6}
-            luminanceSmoothing={0.9}
-            radius={0.8}
-            mipmapBlur
-          />
-          <Vignette offset={0.3} darkness={0.7} />
-        </EffectComposer>
-      )}
+      {/* (No post-processing: the ink layer renders its own HUD pass on top) */}
 
       <Preload all />
     </>
@@ -124,6 +94,21 @@ function SceneContents({ postProcessing, bloomIntensity, isMobile }) {
 
 export default function SceneManager() {
   const device = useDevice()
+  const ready = useBloom((s) => s.ready)
+
+  // Warm the About scene's code once the hero is on screen and the main thread is idle,
+  // so scrolling (or jumping) into About never shows an empty frame while it downloads.
+  useEffect(() => {
+    if (!ready || !device?.is3DEnabled) return
+    const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 1200))
+    const cancel = window.cancelIdleCallback || clearTimeout
+    const id = idle(() => import('./InkRoots'), { timeout: 4000 })
+    return () => cancel(id)
+  }, [ready, device])
+
+  // Adaptive resolution: start crisp, step down if the frame rate struggles
+  const maxDpr = Math.min(window.devicePixelRatio || 1, device?.tier === 1 ? 2 : 1.5)
+  const [dpr, setDpr] = useState(maxDpr)
 
   // Don't render Canvas on low-end devices or if WebGL is unavailable
   if (!device || !device.is3DEnabled) return null
@@ -137,23 +122,27 @@ export default function SceneManager() {
       <Canvas
         eventSource={document.getElementById('root')}
         eventPrefix="client"
-        dpr={device.config.dpr}
+        dpr={dpr}
         camera={{ position: [0, 0, 8], fov: 55, near: 0.1, far: 200 }}
         gl={{
           antialias: device.config.antialias,
           alpha: true,
           powerPreference: device.isMobile ? 'low-power' : 'high-performance',
           stencil: false,
+          localClippingEnabled: true, // hero name reveal uses clipping planes
           depth: true,
         }}
-        style={{ background: 'transparent' }}
+        style={{ background: "transparent" }}
         flat
       >
-        <SceneContents
-          postProcessing={device.config.postProcessing}
-          bloomIntensity={device.config.bloomIntensity}
-          isMobile={device.isMobile}
-        />
+        <PerformanceMonitor
+          flipflops={3}
+          onDecline={() => setDpr(1)}
+          onIncline={() => setDpr(maxDpr)}
+          onFallback={() => setDpr(1)}
+        >
+          <SceneContents />
+        </PerformanceMonitor>
       </Canvas>
     </div>
   )

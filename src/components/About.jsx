@@ -1,189 +1,560 @@
-import { useRef, useEffect, useState } from 'react'
-import { motion, useScroll, useTransform } from 'framer-motion'
-import gsap from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import Kasim from '../assets/Kasim_image.png'
-import SplitText from './ui/SplitText'
-import { useIsMobile } from '../hooks/useDevice'
+/**
+ * About — Chapter 2: "Roots", painted as Ink Bloom (Concept C).
+ *
+ * The page content lives here; the ink itself (paper, roots, blooms, the
+ * falling seed) is drawn by the WebGL layer InkRoots, which reads the
+ * geometry this component measures. Without WebGL, a lighter SVG version of
+ * the roots grows instead.
+ */
+import { useEffect, useRef, useState } from 'react'
+import { motion, useMotionTemplate, useMotionValue, useReducedMotion, useSpring } from 'framer-motion'
+import { buildRoots } from '../lib/roots'
+import { ink, setInkGeom, tipY } from '../lib/inkStore'
+import { useDevice } from '../hooks/useDevice'
+import { useSmoothScroll } from '../providers/SmoothScrollProvider'
+import { AgileVisual, CraftVisual, ImpactVisual, RhythmVisual } from './about/RootVisuals'
+import { RevealLine } from './ui/Reveal'
+import { EASE as MOTION } from '../lib/motion'
 
-gsap.registerPlugin(ScrollTrigger)
+const EASE = MOTION.out
+const MOBILE_TRUNK_X = 26
 
-/* ─── Desktop: GSAP scroll-pinned reveal ──────────────────── */
-function AboutDesktop() {
-  const sectionRef = useRef(null)
-  const imageRef = useRef(null)
-  const para1Ref = useRef(null)
-  const para2Ref = useRef(null)
-  const bulletsRef = useRef(null)
+const ROOTS = [
+  {
+    key: 'craft',
+    label: 'Craft',
+    title: 'Figma to production',
+    body: 'Pixel-accurate builds straight from design files, across SaaS dashboards and e-commerce storefronts.',
+    Visual: CraftVisual,
+  },
+  {
+    key: 'impact',
+    label: 'Impact',
+    title: '30% faster loads',
+    body: 'Code-splitting and lazy loading cut dashboard load times by 30% at Cypherox Technologies.',
+    Visual: ImpactVisual,
+  },
+  {
+    key: 'team',
+    label: 'Way of working',
+    title: 'Agile, side by side',
+    body: 'Sprint rhythm with cross-functional teams, and reusable component libraries everyone can build on.',
+    Visual: AgileVisual,
+  },
+  {
+    key: 'rhythm',
+    label: 'Obsession',
+    title: 'Layout rhythm',
+    body: 'Spacing scales, type rhythm and motion that serve the content, with performance kept in check.',
+    Visual: RhythmVisual,
+  },
+]
 
+const STATS = [
+  { value: '2+', label: 'years shipping production React' },
+  { value: '30%', label: 'faster dashboard loads' },
+  { value: '5+', label: 'client sites launched' },
+]
+
+// Petal outline (rounded crown, pointed base) used to frame the portrait
+const PETAL_MASK = `url("data:image/svg+xml,${encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 140' preserveAspectRatio='none'><path d='M50 139C8 100 0 42 28 11C38 1 62 1 72 11C100 42 92 100 50 139Z'/></svg>",
+)}")`
+const maskStyle = {
+  WebkitMaskImage: PETAL_MASK,
+  maskImage: PETAL_MASK,
+  WebkitMaskSize: '100% 100%',
+  maskSize: '100% 100%',
+  WebkitMaskRepeat: 'no-repeat',
+  maskRepeat: 'no-repeat',
+}
+
+const clamp01 = (v) => Math.min(1, Math.max(0, v))
+
+/** Position of an element's centre inside `root`, ignoring CSS transforms. */
+function centreWithin(el, root) {
+  let x = el.offsetWidth / 2
+  let y = el.offsetHeight / 2
+  let n = el
+  while (n && n !== root) {
+    x += n.offsetLeft
+    y += n.offsetTop
+    n = n.offsetParent
+  }
+  return { x, y }
+}
+
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
   useEffect(() => {
-    const section = sectionRef.current
-    if (!section) return
-
-    const ctx = gsap.context(() => {
-      const tl = gsap.timeline({
-        scrollTrigger: {
-          trigger: section,
-          start: 'top top',
-          end: 'bottom bottom',
-          scrub: 0.8,
-        },
-      })
-
-      // Phase 1: Image reveals via circular clip-path mask
-      tl.fromTo(
-        imageRef.current,
-        { clipPath: 'circle(0% at 50% 50%)', filter: 'grayscale(100%)' },
-        { clipPath: 'circle(75% at 50% 50%)', filter: 'grayscale(0%)', duration: 0.35 },
-        0
-      )
-
-      // Phase 2: First paragraph fades in
-      tl.fromTo(
-        para1Ref.current,
-        { opacity: 0, y: 30 },
-        { opacity: 1, y: 0, duration: 0.2 },
-        0.2
-      )
-
-      // Phase 3: Second paragraph fades in
-      tl.fromTo(
-        para2Ref.current,
-        { opacity: 0, y: 30 },
-        { opacity: 1, y: 0, duration: 0.2 },
-        0.35
-      )
-
-      // Phase 4: Bullet points slide in
-      tl.fromTo(
-        bulletsRef.current,
-        { opacity: 0, x: -40 },
-        { opacity: 1, x: 0, duration: 0.25 },
-        0.5
-      )
-    }, section)
-
-    return () => ctx.revert()
+    const mq = window.matchMedia('(max-width: 767px)')
+    const on = () => setMobile(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
   }, [])
-
-  return (
-    <section id="about" ref={sectionRef} className="relative h-[200vh]">
-      <div className="sticky top-0 flex h-screen w-full items-center justify-center overflow-hidden px-6">
-        <div className="mx-auto grid w-full max-w-6xl gap-16 md:grid-cols-2 items-center">
-          <AboutImage imageRef={imageRef} />
-          <AboutCopy para1Ref={para1Ref} para2Ref={para2Ref} bulletsRef={bulletsRef} hiddenByDefault />
-        </div>
-      </div>
-    </section>
-  )
+  return mobile
 }
 
-/* ─── Mobile: Simple scroll-reveal (no sticky pinning) ────── */
-function AboutMobile() {
-  return (
-    <section id="about" className="relative py-24 px-4">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true, margin: '-60px' }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <AboutImage />
-        </motion.div>
-        <AboutCopy />
-      </div>
-    </section>
-  )
-}
 
-/* ─── Shared image component ──────────────────────────────── */
-function AboutImage({ imageRef }) {
-  return (
-    <div className="relative">
-      <div
-        ref={imageRef}
-        className="relative overflow-hidden rounded-2xl border border-white/5 bg-white/5 shadow-2xl backdrop-blur-xl"
-        style={imageRef ? { clipPath: 'circle(0% at 50% 50%)' } : undefined}
-      >
-        <img
-          src={Kasim}
-          alt="Kasim Husain"
-          className="h-[350px] w-full object-cover object-top transition-all duration-700 sm:h-[420px] md:h-[500px]"
-        />
+/* ─── Petal-framed portrait ───────────────────────────────── */
+function PetalPortrait({ active }) {
+  const reduce = useReducedMotion()
+  const rx = useSpring(0, { stiffness: 150, damping: 18 })
+  const ry = useSpring(0, { stiffness: 150, damping: 18 })
+  const sx = useMotionValue(50)
+  const sy = useMotionValue(30)
+  const shine = useMotionTemplate`radial-gradient(55% 40% at ${sx}% ${sy}%, color-mix(in srgb, var(--color-paper-hi) 35%, transparent), transparent 70%)`
 
-        {/* Glass Badge with specular highlight */}
-        <div className="absolute bottom-4 left-4 right-4 overflow-hidden rounded-xl border border-white/10 bg-black/40 px-4 py-3 backdrop-blur-md sm:bottom-6 sm:left-6 sm:right-6 sm:px-5 sm:py-4">
-          {/* Specular diagonal highlight */}
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 50%, transparent 100%)',
-            }}
-          />
-          <div className="relative">
-            <div className="text-[10px] font-bold tracking-[0.2em] text-white/50 uppercase">Currently At</div>
-            <div className="mt-1 text-sm font-bold text-white">Cypherox Technologies</div>
-            <div className="mt-2 flex items-center gap-2 text-xs font-bold text-[#00E5FF]">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#00E5FF] opacity-60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00E5FF]" />
-              </span>
-              React Developer
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ─── Shared copy component ───────────────────────────────── */
-function AboutCopy({ para1Ref, para2Ref, bulletsRef, hiddenByDefault = false }) {
-  const initialStyle = hiddenByDefault ? { opacity: 0 } : undefined
+  const onMove = (e) => {
+    if (reduce) return
+    const r = e.currentTarget.getBoundingClientRect()
+    const x = (e.clientX - r.left) / r.width
+    const y = (e.clientY - r.top) / r.height
+    ry.set((x - 0.5) * 14)
+    rx.set(-(y - 0.5) * 10)
+    sx.set(x * 100)
+    sy.set(y * 100)
+  }
+  const onLeave = () => {
+    rx.set(0)
+    ry.set(0)
+    sx.set(50)
+    sy.set(30)
+    ink.hover = -1
+  }
 
   return (
     <motion.div
-      className="flex flex-col justify-center"
-      {...(!hiddenByDefault && {
-        initial: { opacity: 0, y: 30 },
-        whileInView: { opacity: 1, y: 0 },
-        viewport: { once: true, margin: '-60px' },
-        transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] },
-      })}
+      className="relative [perspective:1100px]"
+      initial={false}
+      animate={{ opacity: active ? 1 : 0, scale: active ? 1 : 0.9, y: active ? 0 : 36 }}
+      transition={{ duration: 1.1, ease: EASE }}
+      onPointerMove={onMove}
+      onPointerEnter={() => (ink.hover = 0)}
+      onPointerLeave={onLeave}
     >
-      <h2 className="flex flex-col text-4xl font-black uppercase tracking-tighter text-white sm:text-5xl md:text-7xl">
-        <SplitText mode="reveal" stagger={0.04}>Who</SplitText>
-        <SplitText mode="reveal" stagger={0.04} className="text-[#00E5FF]">I Am</SplitText>
-      </h2>
+      <motion.div
+        style={{ rotateX: rx, rotateY: ry }}
+        className="relative aspect-[100/140] w-full drop-shadow-[0_30px_40px_color-mix(in_srgb,_var(--color-ink)_28%,_transparent)]"
+      >
+        {/* rim light */}
+        <div
+          className="absolute inset-0 bg-[linear-gradient(160deg,var(--color-paper-hi),var(--hue-300)_35%,var(--hue-500)_70%,var(--color-ink))]"
+          style={maskStyle}
+        />
+        <div className="absolute inset-[3px] overflow-hidden bg-paper-2" style={maskStyle}>
+          <img
+            src="/about/kasim.webp"
+            alt="Portrait of Kasim Husain"
+            width="800"
+            height="1200"
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover object-[50%_10%]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,color-mix(in_srgb,_var(--hue-300)_25%,_transparent),transparent_30%,transparent_62%,color-mix(in_srgb,_var(--color-ink)_45%,_transparent))]" />
+          <motion.div className="absolute inset-0 mix-blend-soft-light" style={{ background: shine }} />
+        </div>
+      </motion.div>
 
-      <div className="mt-6 space-y-5 text-sm font-medium leading-relaxed text-white/60 sm:mt-8 sm:space-y-6">
-        <p ref={para1Ref} style={initialStyle}>
-          I'm a <span className="text-white font-bold">Frontend Engineer</span> focused on cinematic motion and pixel-accurate interfaces. With 2+ years of production experience, I turn complex requirements into seamless digital experiences.
-        </p>
-        <p ref={para2Ref} style={initialStyle}>
-          At Cypherox Technologies, I architect reusable component libraries, integrate heavily with REST APIs, and optimize dashboards—recently <span className="text-[#00E5FF] font-bold">cutting load times by 30%</span> through code-splitting and lazy-loading.
-        </p>
-      </div>
-
-      <div ref={bulletsRef} style={initialStyle} className="mt-8 flex flex-col gap-4 border-l border-white/10 pl-5 sm:mt-10 sm:gap-5 sm:pl-6">
-        {[
-          'Figma-to-production across SaaS & E-commerce',
-          'Agile sprints & cross-functional collaboration',
-          'Obsessed with layout rhythm & performance'
-        ].map((point, i) => (
-          <div key={i} className="flex items-start gap-3 text-sm font-semibold text-white/80 sm:gap-4">
-            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#00E5FF]" />
-            {point}
-          </div>
-        ))}
+      <div className="absolute -right-3 bottom-[20%] flex items-center gap-2 rounded-full border border-hue-500/20 bg-paper/90 px-3.5 py-2 text-[0.8rem] font-medium text-ink shadow-[0_14px_30px_-12px_color-mix(in_srgb,_var(--color-ink)_45%,_transparent)] backdrop-blur-md md:-right-12">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inset-0 animate-ping rounded-full bg-hue-500/60 motion-reduce:animate-none" />
+          <span className="relative h-2 w-2 rounded-full bg-hue-500" />
+        </span>
+        Freelance frontend engineer
       </div>
     </motion.div>
   )
 }
 
-/* ─── Export ───────────────────────────────────────────────── */
+/* ─── A root card (pearl paper) ───────────────────────────── */
+function RootCard({ root, index, fromTrunkLeft, active }) {
+  const [hover, setHover] = useState(false)
+  const hidden = fromTrunkLeft ? 'inset(0% 100% 0% 0% round 28px)' : 'inset(0% 0% 0% 100% round 28px)'
+  const { Visual } = root
+  return (
+    <motion.article
+      onPointerEnter={() => {
+        setHover(true)
+        ink.hover = index
+      }}
+      onPointerLeave={() => {
+        setHover(false)
+        ink.hover = -1
+      }}
+      initial={false}
+      animate={{ clipPath: active ? 'inset(0% 0% 0% 0% round 28px)' : hidden, opacity: active ? 1 : 0.2 }}
+      transition={{ duration: 1, ease: EASE }}
+      className="group relative rounded-[28px] bg-[linear-gradient(150deg,var(--color-paper-hi),color-mix(in_srgb,_var(--hue-300)_85%,_transparent)_45%,color-mix(in_srgb,_var(--hue-500)_55%,_transparent))] p-px shadow-[0_34px_60px_-34px_color-mix(in_srgb,_var(--color-ink)_55%,_transparent),0_10px_24px_-14px_color-mix(in_srgb,_var(--hue-500)_35%,_transparent)] transition-transform duration-500 hover:-translate-y-1"
+    >
+      <div className="relative overflow-hidden rounded-[27px] bg-[linear-gradient(165deg,color-mix(in_srgb,_var(--color-paper-hi)_95%,_transparent),color-mix(in_srgb,_var(--color-paper)_92%,_transparent)_55%,color-mix(in_srgb,_var(--color-paper-2)_92%,_transparent))] p-6 backdrop-blur-md md:p-7">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-hue-300/60 blur-3xl transition-opacity duration-500 group-hover:opacity-100 md:opacity-80"
+        />
+        <p className="eyebrow relative text-hue-700">{root.label}</p>
+        <h3 className="relative mt-3 font-display text-h3 font-semibold text-ink">
+          {root.title}
+        </h3>
+        <p className="relative mt-3 max-w-[38ch] text-body text-ink-soft">{root.body}</p>
+        <div className="relative mt-5 h-px bg-[linear-gradient(90deg,color-mix(in_srgb,_var(--hue-500)_45%,_transparent),color-mix(in_srgb,_var(--hue-500)_0%,_transparent))]" />
+        <div aria-hidden="true" className="relative mt-5 h-[92px] rounded-2xl bg-paper-2/70 p-3 ring-1 ring-inset ring-hue-500/15">
+          <Visual on={active || hover} />
+        </div>
+      </div>
+    </motion.article>
+  )
+}
+
+/* ─── Section ─────────────────────────────────────────────── */
 export default function About() {
-  const isMobile = useIsMobile()
-  return isMobile ? <AboutMobile /> : <AboutDesktop />
+  const sectionRef = useRef(null)
+  const trunkRef = useRef(null)
+  const trunkG = useRef(null)
+  const tipRef = useRef(null)
+  const branchG = useRef([])
+  const branchPath = useRef([])
+  const rootletRefs = useRef([])
+  const reduce = useReducedMotion()
+  const mobile = useIsMobile()
+  const device = useDevice()
+  const webgl = device ? device.is3DEnabled : true
+  const smooth = useSmoothScroll()
+  const [geom, setGeom] = useState(null)
+  const [active, setActive] = useState([false, false, false, false, false]) // portrait + 4 roots
+
+  // Measure anchors + bloom targets → build the root geometry (re-runs on resize)
+  useEffect(() => {
+    const section = sectionRef.current
+    if (!section) return
+    const measure = () => {
+      const w = section.clientWidth
+      const h = section.offsetHeight
+      const isMobile = w < 768
+      const trunkX = isMobile ? MOBILE_TRUNK_X : w / 2
+      const end = section.querySelector('[data-root="end"]')
+      const endY = end ? centreWithin(end, section).y : h - 120
+      const anchors = ['portrait', ...ROOTS.map((r) => r.key)].map((key) => {
+        const el = section.querySelector(`[data-root="${key}"]`)
+        return { key, ...(el ? centreWithin(el, section) : { x: trunkX, y: 0 }) }
+      })
+      const blooms = [...section.querySelectorAll('[data-bloom]')]
+        .sort((a, b) => a.dataset.bloom - b.dataset.bloom)
+        .map((el) => ({ ...centreWithin(el, section), w: el.offsetWidth, h: el.offsetHeight }))
+      const g = { w, h, endY, trunkX, blooms, ...buildRoots({ trunkX, endY, anchors, mobile: isMobile }) }
+      setGeom(g)
+      setInkGeom(section, g)
+    }
+    const ro = new ResizeObserver(() => measure())
+    ro.observe(section)
+    return () => ro.disconnect()
+  }, [])
+
+  // Growth → which nodes are reached (+ the SVG fallback when there is no WebGL)
+  useEffect(() => {
+    if (!geom) return
+    const section = sectionRef.current
+    const trunk = trunkRef.current
+    let L = 0
+    let lut = null
+    if (trunk) {
+      L = trunk.getTotalLength()
+      const N = Math.max(2, Math.ceil(L / 6))
+      lut = new Float32Array(N + 1)
+      for (let k = 0; k <= N; k++) lut[k] = trunk.getPointAtLength((k / N) * L).y
+      trunkG.current.style.strokeDasharray = `${L} ${L + 4}`
+    }
+    const lenAtY = (y) => {
+      const N = lut.length - 1
+      let lo = 0
+      let hi = N
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1
+        if (lut[mid] < y) lo = mid + 1
+        else hi = mid
+      }
+      return (lo / N) * L
+    }
+    const bLens = geom.branches.map((_, i) => branchPath.current[i]?.getTotalLength() || 0)
+    const rLens = geom.rootlets.map((_, i) => rootletRefs.current[i]?.getTotalLength() || 0)
+    geom.branches.forEach((_, i) => {
+      const g = branchG.current[i]
+      if (g) g.style.strokeDasharray = `${bLens[i]} ${bLens[i] + 4}`
+    })
+    geom.rootlets.forEach((_, i) => {
+      const r = rootletRefs.current[i]
+      if (r) r.style.strokeDasharray = `${rLens[i]} ${rLens[i] + 4}`
+    })
+
+    let raf = 0
+    let last = ''
+    const update = () => {
+      raf = 0
+      const ty = tipY(section.getBoundingClientRect(), geom.endY, reduce)
+      const act = geom.branches.map((b, i) => {
+        const p = clamp01((ty - b.y0) / b.span)
+        const g = branchG.current[i]
+        if (g) {
+          g.style.strokeDashoffset = `${bLens[i] * (1 - p)}`
+          g.style.opacity = p > 0.001 ? '1' : '0'
+        }
+        return p > 0.9
+      })
+      if (trunk) {
+        const drawn = lenAtY(ty)
+        trunkG.current.style.strokeDashoffset = `${L - drawn}`
+        trunkG.current.style.opacity = drawn > 1 ? '1' : '0'
+        const pt = trunk.getPointAtLength(drawn)
+        tipRef.current.setAttribute('transform', `translate(${pt.x} ${pt.y})`)
+        tipRef.current.style.opacity = drawn > 2 && ty < geom.endY - 2 ? '1' : '0'
+        geom.rootlets.forEach((r, i) => {
+          const el = rootletRefs.current[i]
+          if (!el) return
+          const p = clamp01((ty - r.y0) / r.span)
+          el.style.strokeDashoffset = `${rLens[i] * (1 - p)}`
+          el.style.opacity = p > 0.001 ? '1' : '0'
+        })
+      }
+      const key = act.join()
+      if (key !== last) {
+        last = key
+        setActive(act)
+      }
+    }
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(update)
+    }
+    schedule()
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+    }
+  }, [geom, reduce, webgl])
+
+  // Stir the ink with the pointer; click to drop pigment
+  useEffect(() => {
+    const section = sectionRef.current
+    if (!section || reduce) return
+    let lx = 0
+    let ly = 0
+    const onMove = (e) => {
+      const r = section.getBoundingClientRect()
+      const x = e.clientX - r.left
+      const y = e.clientY - r.top
+      const speed = Math.hypot(x - lx, y - ly)
+      lx = x
+      ly = y
+      ink.mouse.x = x
+      ink.mouse.y = y
+      ink.stir = Math.min(1, ink.stir + speed * 0.006)
+    }
+    const onClick = (e) => {
+      if (e.target.closest('a, button')) return
+      const r = section.getBoundingClientRect()
+      ink.drops.push({ x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() })
+      if (ink.drops.length > 6) ink.drops.shift()
+    }
+    section.addEventListener('pointermove', onMove, { passive: true })
+    section.addEventListener('click', onClick)
+    return () => {
+      section.removeEventListener('pointermove', onMove)
+      section.removeEventListener('click', onClick)
+    }
+  }, [reduce])
+
+  const goWork = (e) => {
+    e.preventDefault()
+    if (smooth?.scrollTo) smooth.scrollTo('#projects', { offset: -80 })
+    else document.getElementById('projects')?.scrollIntoView()
+  }
+  const goContact = (e) => {
+    e.preventDefault()
+    if (smooth?.scrollTo) smooth.scrollTo('#contact', { offset: -80 })
+    else document.getElementById('contact')?.scrollIntoView()
+  }
+
+  const anchorDot = (on) =>
+    `block h-3 w-3 rounded-full border-2 transition-all duration-700 ${
+      on
+        ? 'border-paper bg-ink-900 shadow-[0_0_0_4px_color-mix(in_srgb,_var(--hue-500)_28%,_transparent),0_6px_14px_-4px_color-mix(in_srgb,_var(--color-ink)_60%,_transparent)]'
+        : 'border-hue-500/40 bg-paper'
+    }`
+
+  return (
+    <section
+      id="about"
+      data-hue="teal"
+      ref={sectionRef}
+      aria-labelledby="about-title"
+      className={`relative overflow-hidden pb-[600px] pt-[26vh] md:pb-[640px] md:pt-[30vh] ${
+        webgl
+          ? 'bg-transparent'
+          : 'bg-[linear-gradient(180deg,var(--color-iris-300)_0%,var(--color-paper-2)_10%,var(--color-paper)_45%,var(--color-paper-2)_72%,var(--hue-500)_90%,var(--color-ink-900)_100%)]'
+      }`}
+    >
+      {/* SVG fallback roots (no WebGL) */}
+      {geom && !webgl && (
+        <svg
+          aria-hidden="true"
+          className="pointer-events-none absolute left-0 top-0"
+          width={geom.w}
+          height={geom.h}
+          viewBox={`0 0 ${geom.w} ${geom.h}`}
+          fill="none"
+          strokeLinecap="round"
+        >
+          {geom.rootlets.map((r, i) => (
+            <path
+              key={`r${i}`}
+              ref={(el) => {
+                rootletRefs.current[i] = el
+              }}
+              d={r.d}
+              stroke="var(--hue-400)"
+              strokeWidth={r.w * 1.4}
+              style={{ opacity: 0 }}
+            />
+          ))}
+          {geom.branches.map((b, i) => (
+            <g
+              key={b.key}
+              ref={(el) => {
+                branchG.current[i] = el
+              }}
+              style={{ opacity: 0 }}
+            >
+              <path d={b.d} stroke="var(--hue-300)" strokeWidth="9" strokeOpacity="0.5" />
+              <path
+                ref={(el) => {
+                  branchPath.current[i] = el
+                }}
+                d={b.d}
+                stroke="var(--hue-500)"
+                strokeWidth="3"
+              />
+            </g>
+          ))}
+          <g ref={trunkG} style={{ opacity: 0 }}>
+            <path d={geom.trunk} stroke="var(--hue-300)" strokeWidth="14" strokeOpacity="0.5" />
+            <path ref={trunkRef} d={geom.trunk} stroke="var(--color-ink)" strokeWidth="4" />
+          </g>
+          <g ref={tipRef} style={{ opacity: 0 }}>
+            <circle r="6" fill="var(--color-ink)" />
+          </g>
+        </svg>
+      )}
+
+      <div className="container-page relative max-w-[1280px]">
+        <div className="pl-14 sm:pl-12 md:pl-0">
+          {/* Intro + portrait at the first fork */}
+          <div className="md:grid md:grid-cols-2 md:items-center md:gap-x-24">
+            <div className="md:pr-6">
+              <p className="eyebrow text-hue-700">02 — About</p>
+              <h2 id="about-title" className="mt-5 font-display text-h2 font-semibold text-ink">
+                <RevealLine>What grows</RevealLine>
+                <RevealLine delay={0.12} className="font-light text-hue-700">
+                  the work
+                </RevealLine>
+              </h2>
+              <motion.p
+                initial={reduce ? false : { opacity: 0, y: 18 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-12% 0px' }}
+                transition={{ duration: 1, delay: 0.25, ease: EASE }}
+                className="mt-7 max-w-[44ch] text-lead text-ink-soft"
+              >
+                I'm Kasim, a frontend engineer with 2+ years in production. I now freelance, building sites and web apps
+                for brands and startups; before that, at Cypherox Technologies, I built reusable component libraries,
+                connected REST APIs and tuned dashboards for speed. Everything I ship grows from the same four roots.
+              </motion.p>
+              <motion.dl
+                initial={reduce ? false : { opacity: 0, y: 18 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-12% 0px' }}
+                transition={{ duration: 1, delay: 0.4, ease: EASE }}
+                className="mt-10 grid max-w-[540px] grid-cols-3 gap-4"
+              >
+                {STATS.map((s) => (
+                  <div key={s.value} className="flex flex-col-reverse justify-end border-t border-hue-600/35 pt-3">
+                    <dt className="mt-2 text-caption text-ink-soft">{s.label}</dt>
+                    <dd className="bg-[linear-gradient(135deg,var(--color-ink),var(--hue-700))] bg-clip-text font-display text-[clamp(1.75rem,1.3rem+1.6vw,2.6rem)] font-semibold leading-none tracking-[-0.03em] text-transparent">
+                      {s.value}
+                    </dd>
+                  </div>
+                ))}
+              </motion.dl>
+            </div>
+
+            <div
+              data-bloom="0"
+              className="relative mt-[14vh] w-full max-w-[340px] md:mt-[12vh] md:ml-14 md:max-w-[360px] md:justify-self-start"
+            >
+              <span data-root="portrait" className="absolute -left-[26px] top-[42%] md:-left-[24px]">
+                <span className={anchorDot(active[0])} />
+              </span>
+              <PetalPortrait active={active[0]} />
+            </div>
+          </div>
+
+          {/* The four roots */}
+          <ol className="relative mt-[22vh] flex flex-col gap-[16vh] md:mt-[26vh] md:gap-[20vh]">
+            {ROOTS.map((root, i) => {
+              const left = i % 2 === 0
+              return (
+                <li key={root.key} className="md:grid md:grid-cols-2 md:gap-x-48">
+                  <div
+                    data-bloom={i + 1}
+                    className={`relative w-full max-w-[460px] ${
+                      left ? 'md:col-start-1 md:justify-self-end' : 'md:col-start-2 md:justify-self-start'
+                    }`}
+                  >
+                    <span
+                      data-root={root.key}
+                      className={`absolute top-10 -left-[33px] ${left ? 'md:left-auto md:-right-[33px]' : 'md:-left-[33px]'}`}
+                    >
+                      <span className={anchorDot(active[i + 1])} />
+                    </span>
+                    <RootCard root={root} index={i + 1} active={active[i + 1]} fromTrunkLeft={mobile || !left} />
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+
+          {/* The seed at the end of the root */}
+          <div className="relative mt-[22vh] md:flex md:flex-col md:items-center md:text-center">
+            <span data-root="end" className="absolute -left-[58px] top-1 sm:-left-[62px] md:static md:mb-10">
+              <span className="block h-4 w-4 rounded-full bg-[radial-gradient(circle_at_35%_30%,var(--hue-300),var(--hue-500)_45%,var(--color-ink))] shadow-[0_0_0_6px_color-mix(in_srgb,_var(--hue-500)_22%,_transparent),0_10px_24px_-6px_color-mix(in_srgb,_var(--color-ink)_60%,_transparent)]" />
+            </span>
+            <p className="font-display text-[clamp(2rem,4.4vw,3.5rem)] font-semibold leading-none tracking-[-0.03em] text-ink">
+              Still growing.
+            </p>
+            <p className="mt-4 max-w-[40ch] text-lead text-ink-soft">
+              Currently freelancing, building React products for brands and startups.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3 md:justify-center">
+              <a
+                href="#contact"
+                onClick={goContact}
+                className="btn btn-primary"
+              >
+                Start a project
+              </a>
+              <a
+                href="#projects"
+                onClick={goWork}
+                className="btn btn-ghost-light"
+              >
+                See the work
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
 }

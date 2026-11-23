@@ -1,0 +1,127 @@
+/**
+ * Experience entries for the Field Journal. <highlight>…</highlight> marks the
+ * figures that get circled in ink on the page.
+ */
+import { coral, ink, iris, marigold, orchid, paper, teal } from '../lib/palette'
+
+export const ENTRIES = [
+  {
+    id: 'elsner',
+    numeral: 'I',
+    role: 'UI Engineer Intern',
+    company: 'Elsner Technologies Pvt. Ltd.',
+    short: 'Elsner',
+    period: 'Jan — May 2024',
+    stamp: 'ELSNER · JAN–MAY 2024 · ',
+    specimen: { kind: 'sprig', seed: 7 },
+    latin: 'Primum folium',
+    caption: 'First leaf: Figma to React, pixel by pixel.',
+    notes: [
+      'Converted Figma designs into responsive React.js pages with consistent spacing and accessibility.',
+      'Created reusable UI elements and supported sprint-based delivery in an Agile team using Git and GitHub.',
+    ],
+    tags: ['React.js', 'Figma', 'Git & GitHub', 'Agile'],
+    margin: 'spacing matters!',
+  },
+  {
+    id: 'cypherox',
+    numeral: 'II',
+    role: 'React.js Developer',
+    company: 'Cypherox Technologies Pvt. Ltd.',
+    short: 'Cypherox',
+    period: 'Jun 2024 — Jul 2026',
+    stamp: 'CYPHEROX · JUN 2024 — JUL 2026 · ',
+    specimen: { kind: 'bloom', seed: 21 },
+    latin: 'Flos maturus',
+    caption: 'Two years of steady growth.',
+    notes: [
+      'Built and maintained a reusable React component library adopted across multiple internal products.',
+      'Refactored core dashboard views with code splitting and lazy loading, cutting initial load time by <highlight>~30%</highlight>.',
+      'Shipped responsive internal tools used daily by <highlight>100+ active users</highlight>, in 2-week Agile sprints.',
+    ],
+    tags: ['React', 'Component library', 'Code splitting', 'Agile'],
+    margin: 'faster first load',
+  },
+  {
+    id: 'freelance',
+    numeral: 'III',
+    role: 'Freelance Frontend Engineer',
+    company: 'Independent',
+    short: 'Freelance',
+    period: 'Aug 2026 — Present',
+    stamp: 'FREELANCE · AUG 2026 — NOW · ',
+    specimen: { kind: 'fern', seed: 33 },
+    latin: 'Liber crescens',
+    caption: 'Branching out on my own, still growing.',
+    notes: [
+      'Working directly with brands and startups, taking websites and web apps from Figma to launch.',
+      'Owning the whole front end: React and Next.js builds, responsive layouts, performance and SEO.',
+    ],
+    tags: ['React', 'Next.js', 'Tailwind CSS', 'Client work'],
+    margin: 'my own studio',
+  },
+]
+
+// Stamps collected along the way: real places and real numbers
+export const STAMPS = [
+  {
+    id: 'sites',
+    value: '6+',
+    label: 'Production sites',
+    art: 'sites',
+    bg: iris[600],
+    fg: paper.base,
+    accent: iris[300],
+    back: 'Six-plus production sites shipped end to end, from a London members’ club to a Sydney boutique.',
+  },
+  {
+    id: 'speed',
+    value: '30%',
+    label: 'Faster first load',
+    art: 'speed',
+    bg: ink[900],
+    fg: marigold[400],
+    accent: coral[500],
+    back: 'Code splitting and lazy loading on the core dashboard views at Cypherox cut initial load by about a third.',
+  },
+  {
+    id: 'users',
+    value: '100+',
+    label: 'Daily users',
+    art: 'users',
+    bg: teal[300],
+    fg: ink.base,
+    accent: teal[700],
+    back: 'Internal tools used every day by 100+ people, shipped in two-week Agile sprints.',
+  },
+  {
+    id: 'london',
+    value: 'London',
+    label: 'The House of Clio',
+    art: 'london',
+    bg: orchid[700],
+    fg: paper.base,
+    accent: orchid[300],
+    back: 'A private members’ club: typography-led design and a multi-step application flow, built pixel-accurate from Figma.',
+  },
+  {
+    id: 'sydney',
+    value: 'Sydney',
+    label: 'House of Ethnics',
+    art: 'sydney',
+    bg: coral[500],
+    fg: ink.base,
+    accent: marigold[300],
+    back: 'A luxury partywear boutique: a mobile-first catalogue that keeps a premium feel on image-heavy pages.',
+  },
+  {
+    id: 'ahmedabad',
+    value: 'Ahmedabad',
+    label: 'Home base',
+    art: 'ahmedabad',
+    bg: paper[2],
+    fg: ink.base,
+    accent: iris[600],
+    back: 'Where the code gets written, and where the sky fills with kites every January.',
+  },
+]

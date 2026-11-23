@@ -4,7 +4,6 @@ import About from '../components/About'
 import Experience from '../components/Experience'
 import Skills from '../components/Skills'
 import Projects from '../components/Projects'
-import Achievements from '../components/Achievements'
 import Contact from '../components/Contact'
 import Footer from '../components/Footer'
 import ScrollProgress from '../components/ScrollProgress'
@@ -18,7 +17,7 @@ export default function Home() {
       {/* Floating glassmorphic navbar */}
       <Navbar />
 
-      <main>
+      <main id="main" tabIndex={-1} className="outline-none">
         {/* 1 — Cinematic 3D hero */}
         <Hero />
 
@@ -31,11 +30,8 @@ export default function Home() {
         {/* 4 — 3D Project Gallery Wrapper */}
         <Projects />
 
-        {/* 5 — Horizontal Cinematic Timeline */}
+        {/* 5 + 6 — Field journal, ending in the stamp collection (achievements) */}
         <Experience />
-
-        {/* 6 — Achievements & Metrics */}
-        <Achievements />
 
         {/* 7 — Contact form */}
         <Contact />

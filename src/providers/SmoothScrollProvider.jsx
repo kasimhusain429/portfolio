@@ -1,55 +1,37 @@
 /**
- * SmoothScrollProvider — Lenis smooth scroll integration.
+ * SmoothScrollProvider: Lenis inertial scrolling on one requestAnimationFrame loop.
  *
- * Wraps the app with Lenis for butter-smooth inertial scrolling.
- * Syncs with GSAP ScrollTrigger for scroll-pinning.
+ * Respects prefers-reduced-motion: wheel smoothing is off and programmatic
+ * scrolls jump instead of gliding. (GSAP was only used to drive this loop, so it is gone.)
  */
-import { createContext, useCallback, useContext, useEffect, useRef } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
 import Lenis from 'lenis'
 
 const SmoothScrollContext = createContext(null)
+const easeOutExpo = (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t))
+const prefersReduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 export function SmoothScrollProvider({ children }) {
   const lenisRef = useRef(null)
 
   useEffect(() => {
+    const reduce = prefersReduced()
     const lenis = new Lenis({
       duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // easeOutExpo
+      easing: easeOutExpo,
       orientation: 'vertical',
       gestureOrientation: 'vertical',
-      smoothWheel: true,
+      smoothWheel: !reduce,
       wheelMultiplier: 1,
       touchMultiplier: 2,
       infinite: false,
     })
-
     lenisRef.current = lenis
 
-    // Sync Lenis with GSAP ScrollTrigger (if loaded)
-    let gsapModule = null
-    import('gsap').then((gsap) => {
-      import('gsap/ScrollTrigger').then(({ ScrollTrigger }) => {
-        gsapModule = gsap.default
-        gsapModule.registerPlugin(ScrollTrigger)
-
-        lenis.on('scroll', ScrollTrigger.update)
-        gsapModule.ticker.add((time) => {
-          lenis.raf(time * 1000)
-        })
-        gsapModule.ticker.lagSmoothing(0)
-      })
-    })
-
-    // Fallback RAF loop (before GSAP loads)
-    let rafId
-    function raf(time) {
-      if (!gsapModule) {
-        lenis.raf(time)
-      }
+    let rafId = requestAnimationFrame(function raf(time) {
+      lenis.raf(time)
       rafId = requestAnimationFrame(raf)
-    }
-    rafId = requestAnimationFrame(raf)
+    })
 
     return () => {
       cancelAnimationFrame(rafId)
@@ -62,21 +44,20 @@ export function SmoothScrollProvider({ children }) {
     lenisRef.current?.scrollTo(target, {
       offset: -88, // navbar offset
       duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      easing: easeOutExpo,
+      immediate: prefersReduced(),
       ...options,
     })
   }, [])
 
   const stop = useCallback(() => lenisRef.current?.stop(), [])
   const start = useCallback(() => lenisRef.current?.start(), [])
+  const value = useMemo(() => ({ lenis: lenisRef, scrollTo, stop, start }), [scrollTo, stop, start])
 
-  return (
-    <SmoothScrollContext.Provider value={{ lenis: lenisRef, scrollTo, stop, start }}>
-      {children}
-    </SmoothScrollContext.Provider>
-  )
+  return <SmoothScrollContext.Provider value={value}>{children}</SmoothScrollContext.Provider>
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- the hook belongs with its provider
 export function useSmoothScroll() {
   return useContext(SmoothScrollContext)
 }
