@@ -1,13 +1,15 @@
 /**
  * HeroScene3D — "Bloom"
  *
- * A glass flower whose four large petals carry Kasim's real projects.
+ * A single violet bloom whose four outer petals carry Kasim's real projects.
  *   seed → bloom intro, heliotropic cursor tracking, proximity opening,
  *   petal hover / click, drag to spin, press-and-hold to fully bloom,
  *   and a scroll choreography that releases the petals and lets dusk fall.
  *
- * The name "KASIM HUSAIN" is also drawn in-scene (measured from the DOM
- * headline) so the glass petals refract it.
+ * The flower is built like a real one (bloom/): thin satin petals in one hue,
+ * deep at the throat and pale at the tips, in three rings around a heart of
+ * stamens. The name "KASIM HUSAIN" is drawn in-scene too (measured from the
+ * DOM headline) so it can sit behind the flower and part as you scroll.
  */
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
@@ -15,223 +17,50 @@ import { Environment, Lightformer } from '@react-three/drei'
 import { easing } from 'maath'
 import * as THREE from 'three'
 import { bloomAnchor, getBloom, setBloom } from '../../lib/bloomStore'
-import { ink } from '../../lib/inkStore'
 import * as palette from '../../lib/palette'
 import { useSmoothScroll } from '../../providers/SmoothScrollProvider'
+import FlowerHeart from './bloom/FlowerHeart'
+import { clamp01, radialTexture, rand, range, smooth, spring } from './bloom/helpers'
+import { makePetalGeometry } from './bloom/petalGeometry'
+import { makePetalMaterial, PETAL_TONE } from './bloom/petalMaterial'
 
-// Iris is the hero's dominant hue; each petal then carries its own spectrum hue (see PETAL_HUES)
+// Iris is the hero's hue, and the whole flower stays inside it
 const PAL = { navy: palette.iris[700], corn: palette.iris[500], peri: palette.iris[300], pearl: palette.paper.base }
-const warm = (h) => ({ navy: h[600], corn: h[500], peri: h[300] })
-const cool = (h) => ({ navy: h[700], corn: h[500], peri: h[300] })
-const PETAL_HUES = [cool(palette.iris), cool(palette.orchid), cool(palette.coral), warm(palette.marigold)]
 const PETAL_PROJECTS = ['house-of-clio', 'house-of-ethnics', 'nxt-digital', 'darryl-montgomery']
 const CAM_Z = 8
 const NAME_Z = -0.6
 
-const clamp01 = (v) => Math.min(1, Math.max(0, v))
-const range = (v, a, b) => clamp01((v - a) / (b - a))
-const smooth = (t) => t * t * (3 - 2 * t)
-const rand = (i, s) => {
-  const x = Math.sin(i * 127.1 + s * 311.7) * 43758.5453
-  return x - Math.floor(x)
-}
-
-/* Damped spring (gives the organic overshoot when petals open) */
-function spring(s, target, dt, k = 70, c = 9) {
-  s.v += (target - s.x) * k * dt
-  s.v *= Math.exp(-c * dt)
-  s.x += s.v * dt
-  return s.x
-}
-
-/* ─── Geometry ────────────────────────────────────────────── */
-function petalOutline(w, l, scale = 1, cy = 0) {
-  const s = new THREE.Shape()
-  const P = (x, y) => [x * scale, (y - cy) * scale + cy]
-  s.moveTo(...P(0, 0))
-  s.bezierCurveTo(...P(w * 1.25, l * 0.2), ...P(w * 0.95, l * 0.86), ...P(0, l))
-  s.bezierCurveTo(...P(-w * 0.95, l * 0.86), ...P(-w * 1.25, l * 0.2), ...P(0, 0))
-  return s
-}
-
-/** cup the petal (edges toward the flower axis, -Z) and curl the tip outward (+Z) */
-function bend(geo, l, cup, curl) {
-  const p = geo.attributes.position
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i)
-    const t = Math.max(0, p.getY(i) / l)
-    p.setZ(i, p.getZ(i) - cup * x * x + curl * Math.pow(t, 2.4) * l)
-  }
-  p.needsUpdate = true
-  geo.computeVertexNormals()
-  return geo
-}
-
-function makePetal({ w, l, depth, cup, curl, withScreen }) {
-  const glass = new THREE.ExtrudeGeometry(petalOutline(w, l), {
-    depth,
-    bevelEnabled: true,
-    bevelThickness: depth * 0.35,
-    bevelSize: Math.min(w, l) * 0.028,
-    bevelSegments: 4,
-    curveSegments: 40,
-  })
-  glass.translate(0, 0, -depth / 2)
-  bend(glass, l, cup, curl)
-
-  let screen = null
-  if (withScreen) {
-    screen = new THREE.ShapeGeometry(petalOutline(w, l, 0.84, l * 0.5), 40)
-    // square image mapped without stretching; u mirrored because we see the -Z face
-    const uv = screen.attributes.uv
-    const pos = screen.attributes.position
-    for (let i = 0; i < pos.count; i++) uv.setXY(i, 0.5 - pos.getX(i) / l, pos.getY(i) / l)
-    bend(screen, l, cup, curl)
-  }
-  return { glass, screen }
-}
-
-/* ─── Small canvas textures ──────────────────────────────── */
-function radialTexture(stops, size = 256) {
-  const c = document.createElement('canvas')
-  c.width = c.height = size
-  const ctx = c.getContext('2d')
-  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
-  stops.forEach(([o, col]) => g.addColorStop(o, col))
-  ctx.fillStyle = g
-  ctx.fillRect(0, 0, size, size)
-  const t = new THREE.CanvasTexture(c)
-  t.colorSpace = THREE.SRGBColorSpace
-  return t
-}
-
-/* ─── Petal light layer ──────────────────────────────────
- * Lives inside each glass petal: a slow liquid gradient in the palette,
- * radiating veins and an iridescent rim. On hover
- * the project image "develops" in, recoloured as a palette duotone.
+/* ─── Petal shapes ───────────────────────────────────────────
+ * Outer ring: the four project petals (their length also sizes the preview
+ * anchor). Inner ring: four smaller petals between them. Crown: narrow,
+ * deeply cupped petals around the heart. Loose: stray petals drifting by.
  */
-const PROJECT_PETAL = { w: 0.95, l: 2.55, depth: 0.12, cup: 0.32, curl: 0.12 }
+const PROJECT_PETAL = { length: 2.55, width: 0.98, belly: 0.47, fullness: 0.6, claw: 0.12, cup: 0.3, keel: 0.06, bow: 0.035, curl: 0.09, ruffle: 0.03, waves: 2.2 }
+const INNER_PETAL = { ...PROJECT_PETAL, width: 0.88, fullness: 0.68, cup: 0.42, curl: 0.05 }
+const CROWN_PETAL = { length: 1.25, width: 0.36, belly: 0.52, fullness: 0.7, claw: 0.22, cup: 0.65, keel: 0.08, bow: 0.04, curl: 0.07, ruffle: 0.02, waves: 1.6, segU: 14, segV: 24 }
+const LOOSE_PETAL = { length: 0.62, width: 0.25, belly: 0.5, fullness: 0.6, claw: 0.2, cup: 0.55, keel: 0.05, bow: 0.05, curl: 0.16, ruffle: 0.03, waves: 1.5, segU: 10, segV: 16 }
+const LOOSE_COUNT = { desktop: 5, mobile: 3 }
 
-/** soft petal-shaped mask in the light layer's UV space (1 inside, falls off at the edge) */
-function petalMaskTexture() {
-  const S = 256
-  const { w, l } = PROJECT_PETAL
-  const c = document.createElement('canvas')
-  c.width = c.height = S
-  const ctx = c.getContext('2d')
-  ctx.fillStyle = 'black' // luminance mask, not a palette colour
-  ctx.fillRect(0, 0, S, S)
-  ctx.filter = 'blur(9px)'
-  ctx.fillStyle = 'white'
-  ctx.beginPath()
-  petalOutline(w, l, 0.84, l * 0.5)
-    .getPoints(64)
-    .forEach((pt, i) => {
-      const X = (0.5 - pt.x / l) * S
-      const Y = (1 - pt.y / l) * S
-      if (i) ctx.lineTo(X, Y)
-      else ctx.moveTo(X, Y)
-    })
-  ctx.closePath()
-  ctx.fill()
-  return new THREE.CanvasTexture(c)
-}
-
-const LIGHT_VERT = /* glsl */ `
-  varying vec2 vUv;
-  varying vec3 vN;
-  varying vec3 vView;
-  void main() {
-    vUv = uv;
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vN = normalize(mat3(modelMatrix) * normal);
-    vView = normalize(cameraPosition - wp.xyz);
-    gl_Position = projectionMatrix * viewMatrix * wp;
+/** Crown: two whorls of four cupped around the heart, each sitting in the gaps of the ring outside it, slightly irregular like a real bloom */
+const CROWN = Array.from({ length: 8 }, (_, i) => {
+  const outer = i < 4
+  return {
+    az: (i % 4) * (Math.PI / 2) + (outer ? 0 : Math.PI / 4) + (rand(i, 7) - 0.5) * 0.16,
+    rest: (outer ? 0.55 : 0.38) + (rand(i, 8) - 0.5) * 0.06,
+    size: outer ? 1 : 0.86,
   }
-`
+})
 
-const LIGHT_FRAG = /* glsl */ `
-  uniform float uTime, uHover, uDim, uSeed, uGlow;
-  uniform sampler2D uMask;
-  uniform vec3 cNavy, cCorn, cPeri, cPearl;
-  varying vec2 vUv;
-  varying vec3 vN;
-  varying vec3 vView;
-
-  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-  float noise(vec2 p) {
-    vec2 i = floor(p), f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
-  }
-  float fbm(vec2 p) {
-    float s = 0.0, a = 0.5;
-    for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; }
-    return s;
-  }
-  vec3 ramp(float t) {
-    t = clamp(t, 0.0, 1.0);
-    vec3 c = mix(cNavy, cCorn, smoothstep(0.0, 0.42, t));
-    c = mix(c, cPeri, smoothstep(0.38, 0.78, t));
-    return mix(c, cPearl, smoothstep(0.74, 1.0, t));
-  }
-
-  void main() {
-    float m = texture2D(uMask, vUv).r;
-    float v = vUv.y;
-    float x = vUv.x - 0.5;
-    float t = uTime * 0.11 + uSeed * 7.0;
-
-    // liquid gradient: cornflower body, periwinkle tip, drifting like ink in glass
-    float n = fbm(vec2(x * 3.0 + uSeed, v * 2.4 - t));
-    float n2 = fbm(vec2(x * 6.0 - t * 0.6, v * 4.5 + uSeed));
-    vec3 col = ramp(0.24 + 0.52 * v + (n - 0.5) * 0.7);
-    col = mix(col, cPearl, smoothstep(0.6, 0.92, n2) * 0.4);
-
-    // veins fanning out from the base, plus the midrib
-    float a = x / (v + 0.12);
-    float vein = pow(abs(sin(a * 9.0 + n * 2.4)), 44.0) * smoothstep(0.04, 0.3, v) * (1.0 - v * 0.6) * (0.4 + n2);
-    float rib = exp(-abs(x) * 60.0) * (1.0 - v * 0.75);
-    col += (vein * 0.2 + rib * 0.35) * mix(cPeri, cPearl, 0.6);
-
-    // light pouring out of the core
-    col += cPeri * exp(-v * 4.5) * uGlow;
-
-    // iridescent rim
-    float rim = smoothstep(0.12, 0.5, m) * (1.0 - smoothstep(0.5, 0.92, m));
-    vec3 irid = 0.5 + 0.5 * cos(6.2831 * (vec3(0.0, 0.18, 0.36) + n * 1.2 + t * 0.9 + v));
-    irid = mix(cPeri, cPeri * irid * 1.3 + cPearl * 0.25, 0.55);
-    col = mix(col, irid + 0.2, rim * 0.85);
-
-    // fresnel sheen
-    float fr = pow(1.0 - abs(dot(normalize(vN), normalize(vView))), 2.5);
-    col += cPeri * fr * 0.3;
-
-
-    col *= uDim * mix(0.6, 1.0, smoothstep(0.0, 0.35, m));
-    gl_FragColor = vec4(col, 1.0);
-    #include <colorspace_fragment>
-  }
-`
-
-function makeLightMaterial({ seed = 0, mask, hue = PAL }) {
-  return new THREE.ShaderMaterial({
-    vertexShader: LIGHT_VERT,
-    fragmentShader: LIGHT_FRAG,
-    side: THREE.DoubleSide,
-    uniforms: {
-      uTime: { value: 0 },
-      uHover: { value: 0 },
-      uDim: { value: 1 },
-      uGlow: { value: 0.9 },
-      uSeed: { value: seed },
-      uMask: { value: mask },
-      cNavy: { value: new THREE.Color(hue.navy) },
-      cCorn: { value: new THREE.Color(hue.corn) },
-      cPeri: { value: new THREE.Color(hue.peri) },
-      cPearl: { value: new THREE.Color(PAL.pearl) },
-    },
+/** no two petals alike: a little twist, a wandering midrib, slightly different lengths */
+function petalPart(spec, seed, tone) {
+  const geometry = makePetalGeometry({
+    ...spec,
+    seed,
+    length: spec.length * (1 + (rand(seed, 3) - 0.5) * 0.05),
+    twist: (rand(seed, 1) - 0.5) * 0.18,
+    sway: (rand(seed, 2) - 0.5) * 0.08,
   })
+  return { geometry, material: makePetalMaterial({ seed, tone }) }
 }
 
 /* ─── Atmosphere ─────────────────────────────────────────
@@ -305,7 +134,8 @@ function makeAtmosphere() {
 
 /* ─── Pollen: layered depth particles ────────────────────
  * Tiny sharp sparkles, mid glowing pollen and large soft bokeh discs in the
- * palette (navy specks included for depth); they twinkle, sway and rise.
+ * flower's own colours (pearl, lavender, a little gold, a few deep iris specks
+ * for depth); they twinkle, sway and rise.
  */
 const POLLEN_VERT = /* glsl */ `
   attribute float aSize;
@@ -347,50 +177,7 @@ const POLLEN_FRAG = /* glsl */ `
   }
 `
 
-/* ─── Materials (shared) ─────────────────────────────────── */
-function useMaterials() {
-  return useMemo(() => {
-    const glass = new THREE.MeshPhysicalMaterial({
-      color: palette.paper.hi,
-      transmission: 1,
-      thickness: 0.3,
-      roughness: 0.05,
-      ior: 1.5,
-      iridescence: 0.9,
-      iridescenceIOR: 1.3,
-      iridescenceThicknessRange: [120, 420],
-      attenuationColor: new THREE.Color(PAL.peri),
-      attenuationDistance: 8,
-      clearcoat: 1,
-      clearcoatRoughness: 0.06,
-      envMapIntensity: 1.25,
-    })
-    // crown + loose petals: luminous iridescent crystal (cheaper than transmission)
-    const crystal = new THREE.MeshPhysicalMaterial({
-      color: palette.iris[300],
-      emissive: new THREE.Color(PAL.corn),
-      emissiveIntensity: 0.32,
-      roughness: 0.08,
-      clearcoat: 1,
-      iridescence: 1,
-      iridescenceIOR: 1.35,
-      transparent: true,
-      opacity: 0.88,
-      envMapIntensity: 1.4,
-    })
-    const core = new THREE.MeshPhysicalMaterial({
-      color: palette.paper[2],
-      emissive: new THREE.Color(PAL.corn),
-      emissiveIntensity: 1.2,
-      roughness: 0.15,
-      clearcoat: 1,
-      flatShading: true,
-    })
-    return { glass, crystal, core }
-  }, [])
-}
-
-/* ─── In-scene name (refracted by the petals) ────────────── */
+/* ─── In-scene name (sits behind the flower, parts on scroll) ─ */
 function NameLines({ shared }) {
   const { size, camera } = useThree()
   const group = useRef()
@@ -482,30 +269,38 @@ function NameLines({ shared }) {
   return <group ref={group} />
 }
 
-/* ─── A petal (glass shell + optional light layer) ───────── */
+/* ─── A petal ───────────────────────────────────────────────
+ * Hinged at the heart's rim. It opens on a spring, breathes slowly, leans
+ * toward the visitor when its project is hovered, and on scroll the project
+ * petals release and tumble away while the inner rings fold into the heart.
+ */
 const _v1 = new THREE.Vector3()
 const _v2 = new THREE.Vector3()
 const PETAL_TIMING = { crown: [0.25, 0.06], inner: [0.5, 0.09], project: [0.7, 0.11] }
+const PETAL_BASE = { crown: 0.05, inner: 0.09, project: 0.12 } // petals attach around the heart, not at one point
+const BREATH_PHASE = { crown: 0, inner: 1.3, project: 2.6 }
 
-function Petal({ geo, material, light, azimuth, rest, index, kind, shared, projectId, size = 1 }) {
+function Petal({ geometry, material, azimuth, rest, index, kind, shared, projectId, size = 1 }) {
   const hinge = useRef()
   const lift = useRef()
+  const mesh = useRef()
   const open = useRef({ x: 0.05, v: 0 })
   const grow = useRef({ x: 0.001, v: 0 })
   const fx = useRef({ hover: 0, dim: 1, present: 0 })
-  const lightMesh = useRef()
 
   useFrame((state, dt) => {
     dt = Math.min(dt, 0.05)
     const sh = shared.current
-    const t = state.clock.elapsedTime - sh.start
+    const now = state.clock.elapsedTime
+    const t = now - sh.start
+    const calm = sh.reduced ? 0 : 1
     const [d0, step] = PETAL_TIMING[kind]
     const started = t > d0 + index * step
     const hov = !!projectId && sh.hovered === projectId
     const other = !!sh.hovered && !hov && (kind === 'project' || kind === 'inner')
     easing.damp(fx.current, 'hover', hov ? 1 : 0, hov ? 0.32 : 0.22, dt)
     easing.damp(fx.current, 'present', hov ? 1 : 0, 0.28, dt)
-    easing.damp(fx.current, 'dim', other ? 0.68 : 1, 0.25, dt)
+    easing.damp(fx.current, 'dim', other ? 0.72 : 1, 0.25, dt)
 
     let target = started ? rest : 0.08
     if (other) target -= 0.14 // neighbours bow back so the chosen petal stands clear
@@ -513,43 +308,46 @@ function Petal({ geo, material, light, azimuth, rest, index, kind, shared, proje
     if (kind === 'inner') target += sh.proximity * 0.08 + sh.bloom * 0.3
     if (kind === 'crown') target += sh.bloom * 0.2 + sh.proximity * 0.05
     target += smooth(range(sh.progress, 0.15, 0.45)) * 0.35
+    // a slow breath, each petal on its own phase
+    if (started) target += Math.sin(now * 0.7 + index * 2.1 + BREATH_PHASE[kind]) * 0.02 * calm
     hinge.current.rotation.x = spring(open.current, target, dt, kind === 'project' ? 38 : 55, 7.5)
     const g = spring(grow.current, started ? 1 : 0.35, dt, 60, 10)
 
     const p = sh.progress
+    let release
     if (kind === 'project') {
-      // release: fly outward along the petal's own length, past the screen edge
-      const d = smooth(range(p, 0.42 + index * 0.06, 0.72 + index * 0.06))
+      // release: fly outward along the petal's own length, past the screen edge, tumbling as it goes
+      release = smooth(range(p, 0.42 + index * 0.06, 0.72 + index * 0.06))
       const pr = fx.current.present
-      lift.current.position.set(0, d * 11, d * 2)
-      lift.current.rotation.set(-d * 0.8, d * (index % 2 ? 1.6 : -1.6), 0)
+      lift.current.position.set(0, release * 11, release * 2 - pr * 0.1)
+      lift.current.rotation.set(-release * 0.8, release * (index % 2 ? 1.6 : -1.6), Math.sin(now * 2.3 + index * 1.7) * release * 0.45 * calm)
       lift.current.scale.setScalar(g * size * (1 + pr * 0.04))
       // where the hovered petal sits on screen, for the DOM preview card
       if (hov) {
-        const c = _v1.set(0, PROJECT_PETAL.l * 0.55, 0).applyMatrix4(lift.current.matrixWorld).project(state.camera)
+        const c = _v1.set(0, PROJECT_PETAL.length * 0.55, 0).applyMatrix4(lift.current.matrixWorld).project(state.camera)
         bloomAnchor.x = (c.x * 0.5 + 0.5) * state.size.width
         bloomAnchor.y = (-c.y * 0.5 + 0.5) * state.size.height
       }
     } else {
-      const out = kind === 'inner' ? range(p, 0.5, 0.75) : range(p, 0.6, 0.85)
-      lift.current.scale.setScalar(g * size * (1 - smooth(out)) + 0.0001)
+      release = kind === 'inner' ? range(p, 0.5, 0.75) : range(p, 0.6, 0.85)
+      lift.current.scale.setScalar(g * size * (1 - smooth(release)) + 0.0001)
     }
 
-    if (lightMesh.current) {
-      const u = lightMesh.current.material.uniforms
-      u.uTime.value = state.clock.elapsedTime
-      u.uHover.value = fx.current.hover
-      u.uDim.value = fx.current.dim
-      u.uGlow.value = 0.85 + sh.bloom * 0.9 + sh.proximity * 0.35 + fx.current.hover * 0.7
-    }
+    const u = mesh.current.material.userData.uniforms
+    u.uTime.value = now
+    u.uHover.value = fx.current.hover
+    u.uDim.value = fx.current.dim
+    u.uGlow.value = 0.85 + sh.bloom * 0.9 + sh.proximity * 0.35 + fx.current.hover * 0.5
+    u.uFlutter.value = calm * (0.012 + sh.bloom * 0.012 + release * 0.04)
   })
 
   return (
     <group rotation-y={azimuth}>
-      <group ref={hinge}>
-        <group ref={lift}>
-          <mesh geometry={geo.glass} material={material} userData={{ projectId }} />
-          {light && geo.screen && <mesh ref={lightMesh} geometry={geo.screen} material={light} userData={{ projectId }} />}
+      <group position-z={PETAL_BASE[kind]}>
+        <group ref={hinge}>
+          <group ref={lift}>
+            <mesh ref={mesh} geometry={geometry} material={material} userData={{ projectId }} />
+          </group>
         </group>
       </group>
     </group>
@@ -564,7 +362,7 @@ function Pollen({ count, shared }) {
     const size = new Float32Array(count)
     const seed = new Float32Array(count)
     const col = new Float32Array(count * 3)
-    const specks = [palette.iris[500], palette.orchid[500], palette.coral[500], palette.marigold[500], palette.iris[300], palette.paper.hi, palette.iris[700]].map((c) => new THREE.Color(c))
+    const specks = [palette.paper.hi, palette.paper.hi, palette.iris[300], palette.iris[300], palette.iris[400], palette.marigold[300], palette.iris[600]].map((c) => new THREE.Color(c))
     for (let i = 0; i < count; i++) {
       const z = -6 + rand(i, 3) * 11
       pos.set([(rand(i, 1) - 0.5) * 22, -6 + rand(i, 2) * 12, z], i * 3)
@@ -619,66 +417,56 @@ export default function HeroScene3D() {
   const narrow = size.width < 768
   const mobile = narrow || size.width * size.height < 700_000
 
-  const mats = useMaterials()
-
-  const geos = useMemo(
+  // every petal gets its own shape and material (one shared shader program)
+  const petals = useMemo(
     () => ({
-      project: makePetal({ ...PROJECT_PETAL, withScreen: true }),
-      crown: makePetal({ w: 0.32, l: 1.25, depth: 0.08, cup: 0.9, curl: 0.18 }),
-      loose: makePetal({ w: 0.18, l: 0.55, depth: 0.04, cup: 0.9, curl: 0.2 }),
+      project: PETAL_PROJECTS.map((_, i) => petalPart(PROJECT_PETAL, i, PETAL_TONE.project)),
+      inner: [0, 1, 2, 3].map((i) => petalPart(INNER_PETAL, 4 + i, PETAL_TONE.inner)),
+      crown: CROWN.map((_, i) => petalPart(CROWN_PETAL, 8 + i, PETAL_TONE.crown)),
+      loose: Array.from({ length: LOOSE_COUNT.desktop }, (_, i) => petalPart(LOOSE_PETAL, 20 + i, PETAL_TONE.loose)),
     }),
     []
   )
 
-  const glow = useMemo(
-    () =>
-      radialTexture([
-        [0, palette.alpha(palette.paper.hi, 1)],
-        [0.25, palette.alpha(palette.iris[300], 0.85)],
-        [0.6, palette.alpha(palette.iris[500], 0.25)],
-        [1, palette.alpha(palette.iris[500], 0)],
-      ]),
-    []
-  )
+  // a soft violet shadow under the flower
   const floorTex = useMemo(
     () =>
       radialTexture([
-        [0, palette.alpha(palette.iris[600], 0.8)],
-        [0.3, palette.alpha(palette.orchid[500], 0.42)],
-        [0.6, palette.alpha(palette.orchid[300], 0.25)],
-        [1, palette.alpha(palette.orchid[300], 0)],
+        [0, palette.alpha(palette.iris[700], 0.5)],
+        [0.35, palette.alpha(palette.iris[600], 0.22)],
+        [0.7, palette.alpha(palette.iris[400], 0.08)],
+        [1, palette.alpha(palette.iris[400], 0)],
       ]),
     []
   )
-  const mask = useMemo(() => petalMaskTexture(), [])
-  const lights = useMemo(
-    () => [
-      ...PETAL_PROJECTS.map((_, i) => makeLightMaterial({ seed: i, mask, hue: PETAL_HUES[i % PETAL_HUES.length] })),
-      ...[0, 1, 2, 3].map((i) => makeLightMaterial({ seed: 4 + i * 1.7, mask, hue: PETAL_HUES[(i + 1) % PETAL_HUES.length] })),
-    ],
-    [mask]
-  )
   const atmosphere = useMemo(() => makeAtmosphere(), [])
+
+  // R3F only disposes what it builds from JSX, so free the flower's GPU copies when the hero unmounts
+  useEffect(
+    () => () => {
+      Object.values(petals)
+        .flat()
+        .forEach(({ geometry, material }) => {
+          geometry.dispose()
+          material.dispose()
+        })
+      floorTex.dispose()
+    },
+    [petals, floorTex]
+  )
 
   const shared = useRef({ start: Infinity, reduced: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, progress: 0, proximity: 0, bloom: 0, bloomAt: -10, hovered: null, yaw: 0, yawVel: 0 })
   const root = useRef()
   const tilt = useRef()
   const spin = useRef()
-  const core = useRef()
-  const coreGlow = useRef()
   const backdrop = useRef()
   const loose = useRef()
   const floor = useRef()
   const pointer = useRef({ down: false, moved: false, held: false, holdTimer: 0, target: null })
 
-  // Crown petals on a golden-angle spiral
-  const crown = useMemo(
-    () => Array.from({ length: mobile ? 8 : 11 }, (_, i) => ({ az: i * 2.39996, rest: 0.32 + (i % 3) * 0.09 })),
-    [mobile]
-  )
   const looseDefs = useMemo(
     () =>
-      Array.from({ length: mobile ? 3 : 5 }, (_, i) => ({
+      Array.from({ length: mobile ? LOOSE_COUNT.mobile : LOOSE_COUNT.desktop }, (_, i) => ({
         pos: [(i % 2 ? 1 : -1) * (3.4 + ((i * 1.7) % 2.5)), -1.6 + ((i * 1.3) % 3.4), -1 + ((i * 2.1) % 3)],
         rot: [i * 1.1, i * 0.7, i * 0.3],
         s: 0.8 + (i % 3) * 0.35,
@@ -774,7 +562,6 @@ export default function HeroScene3D() {
       sh.announced = true
       setBloom({ ready: true })
     }
-    const life = t - sh.start
 
     // Scroll progress through the pinned hero
     const el = document.getElementById('home')
@@ -818,7 +605,7 @@ export default function HeroScene3D() {
     if (sh.hovered) {
       const c = _v1.setFromMatrixPosition(root.current.matrixWorld).project(camera)
       const e = _v2.setFromMatrixPosition(root.current.matrixWorld)
-      e.x += PROJECT_PETAL.l * scale * 1.15
+      e.x += PROJECT_PETAL.length * scale * 1.15
       e.project(camera)
       bloomAnchor.cx = (c.x * 0.5 + 0.5) * size.width
       bloomAnchor.cy = (-c.y * 0.5 + 0.5) * size.height
@@ -837,22 +624,17 @@ export default function HeroScene3D() {
     )
     spin.current.rotation.y = sh.yaw + p * 1.4 + Math.sin(t * 0.25) * 0.08 * calm + Math.PI / 4
 
-    // Core: seed → heartbeat
-    const beat = 1 + Math.sin(t * 1.6) * 0.04 * calm + sh.bloom * 0.35 + sh.proximity * 0.1
-    // the core condenses into a seed, then hands over to the ink layer as it starts to fall
-    const seedScale = 1 - smooth(range(p, 0.65, 0.92)) * 0.7
-    const coreS = Math.max((life < 0.4 ? 0.55 : 1) * beat * seedScale * (ink.fallT > 0.01 ? 0 : 1), 0.0001)
-    easing.damp3(core.current.scale, [coreS, coreS, coreS], 0.15, dt)
-    core.current.material.emissiveIntensity = 1.1 + sh.bloom * 1.6 + sh.proximity * 0.5
-    coreGlow.current.scale.setScalar((1.7 + sh.bloom * 1.4 + sh.proximity * 0.3) * coreS)
-    const cs = _v2.setFromMatrixPosition(core.current.matrixWorld).project(camera)
-    ink.heroSeed.x = (cs.x * 0.5 + 0.5) * size.width
-    ink.heroSeed.y = (-cs.y * 0.5 + 0.5) * size.height
-
-    // Loose petals drift
+    // Loose petals drift and tumble, rocking like real petals on the air
     loose.current.children.forEach((m, i) => {
-      m.rotation.x += dt * (0.15 + i * 0.03) * calm
-      m.rotation.y += dt * 0.1 * calm
+      const d = looseDefs[i]
+      m.rotation.set(
+        d.rot[0] + Math.sin(t * 0.5 + i * 1.3) * 0.6 * calm,
+        d.rot[1] + t * 0.12 * calm,
+        d.rot[2] + Math.sin(t * 0.8 + i * 2.2) * 0.35 * calm
+      )
+      const u = m.material.userData.uniforms
+      u.uTime.value = t
+      u.uFlutter.value = 0.02 * calm
     })
     loose.current.position.y = Math.sin(t * 0.4) * 0.15 - p * 2.5
 
@@ -871,13 +653,13 @@ export default function HeroScene3D() {
         <Lightformer intensity={3} position={[0, 6, 3]} scale={[12, 5, 1]} rotation-x={Math.PI / 2} />
         <Lightformer intensity={5} color={PAL.corn} position={[0, 1.5, -6]} scale={[14, 3, 1]} />
         <Lightformer intensity={2.5} color={PAL.peri} position={[7, 1, 2]} scale={[3, 9, 1]} rotation-y={-Math.PI / 2} />
-        <Lightformer intensity={1.8} color={palette.coral[300]} position={[-7, 2, 1]} scale={[3, 9, 1]} rotation-y={Math.PI / 2} />
+        <Lightformer intensity={1.8} color={palette.paper.hi} position={[-7, 2, 1]} scale={[3, 9, 1]} rotation-y={Math.PI / 2} />
         <Lightformer intensity={1} color={PAL.pearl} position={[0, -4, 3]} scale={[12, 3, 1]} rotation-x={-Math.PI / 2} />
       </Environment>
       <directionalLight position={[2, 6, 5]} intensity={1.2} />
       <pointLight position={[0, -0.2, 0.6]} color={PAL.corn} intensity={6} distance={4} />
 
-      {/* Opaque atmosphere so the glass has colour to refract; also carries the dusk */}
+      {/* Opaque atmosphere behind everything; also carries the dusk */}
       <mesh ref={backdrop} position={[0, 0, -6]} material={atmosphere}>
         <planeGeometry args={[120, 120]} />
       </mesh>
@@ -885,7 +667,7 @@ export default function HeroScene3D() {
       <NameLines shared={shared} />
 
       <group ref={root}>
-        {/* floor light pool */}
+        {/* soft shadow pool under the flower */}
         <mesh ref={floor} position={[0, -2.1, 0]} rotation-x={-Math.PI / 2}>
           <planeGeometry args={[9, 5]} />
           <meshBasicMaterial map={floorTex} transparent depthWrite={false} toneMapped={false} />
@@ -896,9 +678,7 @@ export default function HeroScene3D() {
             {PETAL_PROJECTS.map((id, i) => (
               <group key={id} onPointerOver={onOver} onPointerOut={onOut} onPointerDown={onDown}>
                 <Petal
-                  geo={geos.project}
-                  material={mats.glass}
-                  light={lights[i]}
+                  {...petals.project[i]}
                   azimuth={i * (Math.PI / 2)}
                   rest={0.98}
                   index={i}
@@ -909,13 +689,11 @@ export default function HeroScene3D() {
               </group>
             ))}
             <group onPointerDown={onDown}>
-              {/* second, smaller ring of light petals between the project petals */}
-              {[0, 1, 2, 3].map((i) => (
+              {/* second, smaller ring between the project petals */}
+              {petals.inner.map((part, i) => (
                 <Petal
                   key={`i${i}`}
-                  geo={geos.project}
-                  material={mats.glass}
-                  light={lights[4 + i]}
+                  {...part}
                   azimuth={i * (Math.PI / 2) + Math.PI / 4}
                   rest={0.6}
                   index={i}
@@ -924,32 +702,27 @@ export default function HeroScene3D() {
                   size={0.7}
                 />
               ))}
-              {crown.map((c, i) => (
+              {CROWN.map((c, i) => (
                 <Petal
                   key={`c${i}`}
-                  geo={geos.crown}
-                  material={mats.crystal}
+                  {...petals.crown[i]}
                   azimuth={c.az}
                   rest={c.rest}
                   index={i}
                   kind="crown"
                   shared={shared}
+                  size={c.size}
                 />
               ))}
             </group>
-            <mesh ref={core} position={[0, 0.25, 0]} material={mats.core} onPointerDown={onDown}>
-              <icosahedronGeometry args={[0.3, 1]} />
-            </mesh>
-            <sprite ref={coreGlow} position={[0, 0.3, 0]}>
-              <spriteMaterial map={glow} transparent depthWrite={false} toneMapped={false} />
-            </sprite>
+            <FlowerHeart shared={shared} mobile={mobile} onPointerDown={onDown} />
           </group>
         </group>
       </group>
 
       <group ref={loose}>
         {looseDefs.map((d, i) => (
-          <mesh key={i} geometry={geos.loose.glass} material={mats.crystal} position={d.pos} rotation={d.rot} scale={d.s} />
+          <mesh key={i} {...petals.loose[i]} position={d.pos} rotation={d.rot} scale={d.s} />
         ))}
       </group>
 
