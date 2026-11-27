@@ -95,7 +95,7 @@ export function buildRoots({ trunkX, endY, anchors, mobile }) {
       { x: a.x + (jx - a.x) * 0.45, y: a.y - 3 },
       { x: a.x, y: a.y },
     ]
-    return { key: a.key, d: cubicD(c), pts: sampleCubic(c, 40, []), y0: jy, span: mobile ? 110 : 170 }
+    return { key: a.key, d: cubicD(c), pts: sampleCubic(c, 40, []), y0: jy, span: mobile ? 76 : 150 }
   })
 
   const rootlets = []

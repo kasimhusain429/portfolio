@@ -6,10 +6,10 @@
  * geometry this component measures. Without WebGL, a lighter SVG version of
  * the roots grows instead.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { motion, useMotionTemplate, useMotionValue, useReducedMotion, useSpring } from 'framer-motion'
 import { buildRoots } from '../lib/roots'
-import { ink, setInkGeom, tipY } from '../lib/inkStore'
+import { ink, setInkGeom, subscribeInk, tipY } from '../lib/inkStore'
 import { useDevice } from '../hooks/useDevice'
 import { useSmoothScroll } from '../providers/SmoothScrollProvider'
 import { AgileVisual, CraftVisual, ImpactVisual, RhythmVisual } from './about/RootVisuals'
@@ -211,24 +211,29 @@ function RootCard({ root, index, fromTrunkLeft, active }) {
 export default function About() {
   const sectionRef = useRef(null)
   const trunkRef = useRef(null)
+  const trunkGlowRef = useRef(null)
   const trunkG = useRef(null)
   const tipRef = useRef(null)
   const branchG = useRef([])
+  const branchGlowPath = useRef([])
   const branchPath = useRef([])
   const rootletRefs = useRef([])
   const reduce = useReducedMotion()
   const mobile = useIsMobile()
   const device = useDevice()
-  const webgl = device ? device.is3DEnabled : true
+  const inkFailed = useSyncExternalStore(subscribeInk, () => ink.failed)
+  const webgl = (device ? device.is3DEnabled : true) && !inkFailed
   const smooth = useSmoothScroll()
   const [geom, setGeom] = useState(null)
   const [active, setActive] = useState([false, false, false, false, false]) // portrait + 4 roots
 
-  // Measure anchors + bloom targets → build the root geometry (re-runs on resize)
+  // Measure anchors + bloom targets → build the root geometry (re-runs on resize & font ready)
   useEffect(() => {
     const section = sectionRef.current
     if (!section) return
+    let cancelled = false
     const measure = () => {
+      if (cancelled) return
       const w = section.clientWidth
       const h = section.offsetHeight
       const isMobile = w < 768
@@ -246,9 +251,16 @@ export default function About() {
       setGeom(g)
       setInkGeom(section, g)
     }
+    measure()
     const ro = new ResizeObserver(() => measure())
     ro.observe(section)
-    return () => ro.disconnect()
+    document.fonts?.ready.then(measure)
+    window.addEventListener('resize', measure, { passive: true })
+    return () => {
+      cancelled = true
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+    }
   }, [])
 
   // Growth → which nodes are reached (+ the SVG fallback when there is no WebGL)
@@ -256,6 +268,7 @@ export default function About() {
     if (!geom) return
     const section = sectionRef.current
     const trunk = trunkRef.current
+    const trunkGlow = trunkGlowRef.current
     let L = 0
     let lut = null
     if (trunk) {
@@ -263,7 +276,10 @@ export default function About() {
       const N = Math.max(2, Math.ceil(L / 6))
       lut = new Float32Array(N + 1)
       for (let k = 0; k <= N; k++) lut[k] = trunk.getPointAtLength((k / N) * L).y
-      trunkG.current.style.strokeDasharray = `${L} ${L + 4}`
+      const da = `${L} ${L + 4}`
+      trunk.style.strokeDasharray = da
+      if (trunkGlow) trunkGlow.style.strokeDasharray = da
+      if (trunkG.current) trunkG.current.style.strokeDasharray = da
     }
     const lenAtY = (y) => {
       const N = lut.length - 1
@@ -279,8 +295,13 @@ export default function About() {
     const bLens = geom.branches.map((_, i) => branchPath.current[i]?.getTotalLength() || 0)
     const rLens = geom.rootlets.map((_, i) => rootletRefs.current[i]?.getTotalLength() || 0)
     geom.branches.forEach((_, i) => {
+      const da = `${bLens[i]} ${bLens[i] + 4}`
       const g = branchG.current[i]
-      if (g) g.style.strokeDasharray = `${bLens[i]} ${bLens[i] + 4}`
+      const gp = branchGlowPath.current[i]
+      const bp = branchPath.current[i]
+      if (g) g.style.strokeDasharray = da
+      if (gp) gp.style.strokeDasharray = da
+      if (bp) bp.style.strokeDasharray = da
     })
     geom.rootlets.forEach((_, i) => {
       const r = rootletRefs.current[i]
@@ -295,19 +316,31 @@ export default function About() {
       const act = geom.branches.map((b, i) => {
         const p = clamp01((ty - b.y0) / b.span)
         const g = branchG.current[i]
+        const gp = branchGlowPath.current[i]
+        const bp = branchPath.current[i]
+        const off = `${bLens[i] * (1 - p)}`
+        if (gp) gp.style.strokeDashoffset = off
+        if (bp) bp.style.strokeDashoffset = off
         if (g) {
-          g.style.strokeDashoffset = `${bLens[i] * (1 - p)}`
+          g.style.strokeDashoffset = off
           g.style.opacity = p > 0.001 ? '1' : '0'
         }
-        return p > 0.9
+        return p > 0.82
       })
       if (trunk) {
         const drawn = lenAtY(ty)
-        trunkG.current.style.strokeDashoffset = `${L - drawn}`
-        trunkG.current.style.opacity = drawn > 1 ? '1' : '0'
+        const off = `${L - drawn}`
+        trunk.style.strokeDashoffset = off
+        if (trunkGlow) trunkGlow.style.strokeDashoffset = off
+        if (trunkG.current) {
+          trunkG.current.style.strokeDashoffset = off
+          trunkG.current.style.opacity = drawn > 1 ? '1' : '0'
+        }
         const pt = trunk.getPointAtLength(drawn)
-        tipRef.current.setAttribute('transform', `translate(${pt.x} ${pt.y})`)
-        tipRef.current.style.opacity = drawn > 2 && ty < geom.endY - 2 ? '1' : '0'
+        if (tipRef.current) {
+          tipRef.current.setAttribute('transform', `translate(${pt.x} ${pt.y})`)
+          tipRef.current.style.opacity = drawn > 2 && ty < geom.endY - 2 ? '1' : '0'
+        }
         geom.rootlets.forEach((r, i) => {
           const el = rootletRefs.current[i]
           if (!el) return
@@ -325,75 +358,76 @@ export default function About() {
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(update)
     }
-    schedule()
+    update()
+    const offLenis = smooth?.onScroll?.(schedule)
     window.addEventListener('scroll', schedule, { passive: true })
-    window.addEventListener('resize', schedule)
+    window.addEventListener('resize', schedule, { passive: true })
+    window.visualViewport?.addEventListener('resize', schedule, { passive: true })
     return () => {
       cancelAnimationFrame(raf)
+      offLenis?.()
       window.removeEventListener('scroll', schedule)
       window.removeEventListener('resize', schedule)
+      window.visualViewport?.removeEventListener('resize', schedule)
     }
-  }, [geom, reduce, webgl])
+}, [geom, reduce, webgl, smooth])
 
-  // Stir the ink with the pointer; click to drop pigment
-  useEffect(() => {
-    const section = sectionRef.current
-    if (!section || reduce) return
-    let lx = 0
-    let ly = 0
-    const onMove = (e) => {
-      const r = section.getBoundingClientRect()
-      const x = e.clientX - r.left
-      const y = e.clientY - r.top
-      const speed = Math.hypot(x - lx, y - ly)
-      lx = x
-      ly = y
-      ink.mouse.x = x
-      ink.mouse.y = y
-      ink.stir = Math.min(1, ink.stir + speed * 0.006)
-    }
-    const onClick = (e) => {
-      if (e.target.closest('a, button')) return
-      const r = section.getBoundingClientRect()
-      ink.drops.push({ x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() })
-      if (ink.drops.length > 6) ink.drops.shift()
-    }
-    section.addEventListener('pointermove', onMove, { passive: true })
-    section.addEventListener('click', onClick)
-    return () => {
-      section.removeEventListener('pointermove', onMove)
-      section.removeEventListener('click', onClick)
-    }
-  }, [reduce])
-
-  const goWork = (e) => {
-    e.preventDefault()
-    if (smooth?.scrollTo) smooth.scrollTo('#projects', { offset: -80 })
-    else document.getElementById('projects')?.scrollIntoView()
+// Stir the ink with the pointer; click to drop pigment
+useEffect(() => {
+  const section = sectionRef.current
+  if (!section || reduce) return
+  let lx = 0
+  let ly = 0
+  const onMove = (e) => {
+    const r = section.getBoundingClientRect()
+    const x = e.clientX - r.left
+    const y = e.clientY - r.top
+    const speed = Math.hypot(x - lx, y - ly)
+    lx = x
+    ly = y
+    ink.mouse.x = x
+    ink.mouse.y = y
+    ink.stir = Math.min(1, ink.stir + speed * 0.006)
   }
-  const goContact = (e) => {
-    e.preventDefault()
-    if (smooth?.scrollTo) smooth.scrollTo('#contact', { offset: -80 })
-    else document.getElementById('contact')?.scrollIntoView()
+  const onClick = (e) => {
+    if (e.target.closest('a, button')) return
+    const r = section.getBoundingClientRect()
+    ink.drops.push({ x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() })
+    if (ink.drops.length > 6) ink.drops.shift()
   }
+  section.addEventListener('pointermove', onMove, { passive: true })
+  section.addEventListener('click', onClick)
+  return () => {
+    section.removeEventListener('pointermove', onMove)
+    section.removeEventListener('click', onClick)
+  }
+}, [reduce])
 
-  const anchorDot = (on) =>
-    `block h-3 w-3 rounded-full border-2 transition-all duration-700 ${
-      on
-        ? 'border-paper bg-ink-900 shadow-[0_0_0_4px_color-mix(in_srgb,_var(--hue-500)_28%,_transparent),0_6px_14px_-4px_color-mix(in_srgb,_var(--color-ink)_60%,_transparent)]'
-        : 'border-hue-500/40 bg-paper'
-    }`
+const goWork = (e) => {
+  e.preventDefault()
+  if (smooth?.scrollTo) smooth.scrollTo('#projects', { offset: -80 })
+  else document.getElementById('projects')?.scrollIntoView()
+}
+const goContact = (e) => {
+  e.preventDefault()
+  if (smooth?.scrollTo) smooth.scrollTo('#contact', { offset: -80 })
+  else document.getElementById('contact')?.scrollIntoView()
+}
 
-  return (
-    <section
-      id="about"
-      data-hue="teal"
-      ref={sectionRef}
-      aria-labelledby="about-title"
-      className={`relative overflow-hidden pb-[600px] pt-[26vh] md:pb-[640px] md:pt-[30vh] ${
-        webgl
+const anchorDot = (on) =>
+  `block h-3 w-3 rounded-full border-2 transition-all duration-700 ${on
+    ? 'border-paper bg-ink-900 shadow-[0_0_0_4px_color-mix(in_srgb,_var(--hue-500)_28%,_transparent),0_6px_14px_-4px_color-mix(in_srgb,_var(--color-ink)_60%,_transparent)]'
+    : 'border-hue-500/40 bg-paper'
+  }`
+
+return (
+  <section
+    id="about"
+    data-hue="teal"
+    ref={sectionRef}
+    aria-labelledby="about-title"
           ? 'bg-transparent'
-          : 'bg-[linear-gradient(180deg,var(--color-iris-300)_0%,var(--color-paper-2)_10%,var(--color-paper)_45%,var(--color-paper-2)_72%,var(--hue-500)_90%,var(--color-ink-900)_100%)]'
+          : 'bg-[linear-gradient(180deg,var(--color-iris-300)_0%,var(--color-paper-2)_8%,var(--color-paper)_46%,var(--color-paper-2)_78%,var(--hue-500)_91%,var(--color-ink-900)_98%)]'
       }`}
     >
       {/* SVG fallback roots (no WebGL) */}
@@ -403,13 +437,13 @@ export default function About() {
           className="pointer-events-none absolute left-0 top-0"
           width={geom.w}
           height={geom.h}
-          viewBox={`0 0 ${geom.w} ${geom.h}`}
+          viewBox={`0 0 ${ geom.w } ${ geom.h } `}
           fill="none"
           strokeLinecap="round"
         >
           {geom.rootlets.map((r, i) => (
             <path
-              key={`r${i}`}
+              key={`r${ i } `}
               ref={(el) => {
                 rootletRefs.current[i] = el
               }}
@@ -427,7 +461,15 @@ export default function About() {
               }}
               style={{ opacity: 0 }}
             >
-              <path d={b.d} stroke="var(--hue-300)" strokeWidth="9" strokeOpacity="0.5" />
+              <path
+                ref={(el) => {
+                  branchGlowPath.current[i] = el
+                }}
+                d={b.d}
+                stroke="var(--hue-300)"
+                strokeWidth="9"
+                strokeOpacity="0.5"
+              />
               <path
                 ref={(el) => {
                   branchPath.current[i] = el
@@ -439,7 +481,7 @@ export default function About() {
             </g>
           ))}
           <g ref={trunkG} style={{ opacity: 0 }}>
-            <path d={geom.trunk} stroke="var(--hue-300)" strokeWidth="14" strokeOpacity="0.5" />
+            <path ref={trunkGlowRef} d={geom.trunk} stroke="var(--hue-300)" strokeWidth="14" strokeOpacity="0.5" />
             <path ref={trunkRef} d={geom.trunk} stroke="var(--color-ink)" strokeWidth="4" />
           </g>
           <g ref={tipRef} style={{ opacity: 0 }}>
@@ -491,9 +533,9 @@ export default function About() {
 
             <div
               data-bloom="0"
-              className="relative mt-[14vh] w-full max-w-[340px] md:mt-[12vh] md:ml-14 md:max-w-[360px] md:justify-self-start"
+              className="relative mt-[12vh] w-full max-w-[340px] md:mt-[12vh] md:ml-14 md:max-w-[360px] md:justify-self-start"
             >
-              <span data-root="portrait" className="absolute -left-[26px] top-[42%] md:-left-[24px]">
+              <span data-root="portrait" className="absolute -left-[26px] top-[30%] md:-left-[24px] md:top-[42%]">
                 <span className={anchorDot(active[0])} />
               </span>
               <PetalPortrait active={active[0]} />
@@ -501,20 +543,20 @@ export default function About() {
           </div>
 
           {/* The four roots */}
-          <ol className="relative mt-[22vh] flex flex-col gap-[16vh] md:mt-[26vh] md:gap-[20vh]">
+          <ol className="relative mt-[14vh] flex flex-col gap-[12vh] md:mt-[24vh] md:gap-[20vh]">
             {ROOTS.map((root, i) => {
               const left = i % 2 === 0
               return (
                 <li key={root.key} className="md:grid md:grid-cols-2 md:gap-x-48">
                   <div
                     data-bloom={i + 1}
-                    className={`relative w-full max-w-[460px] ${
-                      left ? 'md:col-start-1 md:justify-self-end' : 'md:col-start-2 md:justify-self-start'
-                    }`}
+                    className={`relative w - full max - w - [460px] ${
+  left ? 'md:col-start-1 md:justify-self-end' : 'md:col-start-2 md:justify-self-start'
+} `}
                   >
                     <span
                       data-root={root.key}
-                      className={`absolute top-10 -left-[33px] ${left ? 'md:left-auto md:-right-[33px]' : 'md:-left-[33px]'}`}
+                      className={`absolute top - 10 - left - [33px] ${ left ? 'md:left-auto md:-right-[33px]' : 'md:-left-[33px]' } `}
                     >
                       <span className={anchorDot(active[i + 1])} />
                     </span>
@@ -526,7 +568,7 @@ export default function About() {
           </ol>
 
           {/* The seed at the end of the root */}
-          <div className="relative mt-[22vh] md:flex md:flex-col md:items-center md:text-center">
+          <div className="relative mt-[14vh] md:mt-[20vh] md:flex md:flex-col md:items-center md:text-center">
             <span data-root="end" className="absolute -left-[58px] top-1 sm:-left-[62px] md:static md:mb-10">
               <span className="block h-4 w-4 rounded-full bg-[radial-gradient(circle_at_35%_30%,var(--hue-300),var(--hue-500)_45%,var(--color-ink))] shadow-[0_0_0_6px_color-mix(in_srgb,_var(--hue-500)_22%,_transparent),0_10px_24px_-6px_color-mix(in_srgb,_var(--color-ink)_60%,_transparent)]" />
             </span>

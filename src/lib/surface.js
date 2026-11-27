@@ -3,8 +3,6 @@
  * are light (navy UI on top); everything else, including the ink flood at the
  * bottom of About, is dark (pearl UI on top).
  */
-const ABOUT_FLOOD = 520 // px of navy ink at the bottom of the About paper
-
 export function isLightAt(y) {
   const home = document.getElementById('home')
   if (home) {
@@ -14,7 +12,8 @@ export function isLightAt(y) {
   const about = document.getElementById('about')
   if (about) {
     const r = about.getBoundingClientRect()
-    if (y >= r.top && y < r.bottom - ABOUT_FLOOD) return true
+    const flood = window.innerWidth < 768 ? 160 : 260
+    if (y >= r.top && y < r.bottom - flood) return true
   }
   return false
 }

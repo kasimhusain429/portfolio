@@ -280,453 +280,568 @@ const PETAL_TIMING = { crown: [0.25, 0.06], inner: [0.5, 0.09], project: [0.7, 0
 const PETAL_BASE = { crown: 0.05, inner: 0.09, project: 0.12 } // petals attach around the heart, not at one point
 const BREATH_PHASE = { crown: 0, inner: 1.3, project: 2.6 }
 
-function Petal({ geometry, material, azimuth, rest, index, kind, shared, projectId, size = 1 }) {
-  const hinge = useRef()
-  const lift = useRef()
-  const mesh = useRef()
-  const open = useRef({ x: 0.05, v: 0 })
-  const grow = useRef({ x: 0.001, v: 0 })
-  const fx = useRef({ hover: 0, dim: 1, present: 0 })
+  function Petal({ geometry, material, azimuth, rest, index, kind, shared, projectId, size = 1, registerLift }) {
+    const hinge = useRef()
+    const lift = useRef()
+    const mesh = useRef()
+    const open = useRef({ x: 0.05, v: 0 })
+    const grow = useRef({ x: 0.001, v: 0 })
+    const fx = useRef({ hover: 0, dim: 1, present: 0 })
 
-  useFrame((state, dt) => {
-    dt = Math.min(dt, 0.05)
-    const sh = shared.current
-    const now = state.clock.elapsedTime
-    const t = now - sh.start
-    const calm = sh.reduced ? 0 : 1
-    const [d0, step] = PETAL_TIMING[kind]
-    const started = t > d0 + index * step
-    const hov = !!projectId && sh.hovered === projectId
-    const other = !!sh.hovered && !hov && (kind === 'project' || kind === 'inner')
-    easing.damp(fx.current, 'hover', hov ? 1 : 0, hov ? 0.32 : 0.22, dt)
-    easing.damp(fx.current, 'present', hov ? 1 : 0, 0.28, dt)
-    easing.damp(fx.current, 'dim', other ? 0.72 : 1, 0.25, dt)
+    useEffect(() => {
+      if (!projectId || !registerLift) return
+      registerLift(projectId, lift.current)
+      return () => registerLift(projectId, null)
+    }, [projectId, registerLift])
 
-    let target = started ? rest : 0.08
-    if (other) target -= 0.14 // neighbours bow back so the chosen petal stands clear
-    if (kind === 'project') target += sh.proximity * 0.14 + sh.bloom * 0.28
-    if (kind === 'inner') target += sh.proximity * 0.08 + sh.bloom * 0.3
-    if (kind === 'crown') target += sh.bloom * 0.2 + sh.proximity * 0.05
-    target += smooth(range(sh.progress, 0.15, 0.45)) * 0.35
-    // a slow breath, each petal on its own phase
-    if (started) target += Math.sin(now * 0.7 + index * 2.1 + BREATH_PHASE[kind]) * 0.02 * calm
-    hinge.current.rotation.x = spring(open.current, target, dt, kind === 'project' ? 38 : 55, 7.5)
-    const g = spring(grow.current, started ? 1 : 0.35, dt, 60, 10)
+    useFrame((state, dt) => {
+      dt = Math.min(dt, 0.05)
+      const sh = shared.current
+      const now = state.clock.elapsedTime
+      const t = now - sh.start
+      const calm = sh.reduced ? 0 : 1
+      const [d0, step] = PETAL_TIMING[kind]
+      const started = t > d0 + index * step
+      const hov = !!projectId && sh.hovered === projectId
+      const other = !!sh.hovered && !hov && (kind === 'project' || kind === 'inner')
+      easing.damp(fx.current, 'hover', hov ? 1 : 0, hov ? 0.32 : 0.22, dt)
+      easing.damp(fx.current, 'present', hov ? 1 : 0, 0.28, dt)
+      easing.damp(fx.current, 'dim', other ? 0.72 : 1, 0.25, dt)
 
-    const p = sh.progress
-    let release
-    if (kind === 'project') {
-      // release: fly outward along the petal's own length, past the screen edge, tumbling as it goes
-      release = smooth(range(p, 0.42 + index * 0.06, 0.72 + index * 0.06))
-      const pr = fx.current.present
-      lift.current.position.set(0, release * 11, release * 2 - pr * 0.1)
-      lift.current.rotation.set(-release * 0.8, release * (index % 2 ? 1.6 : -1.6), Math.sin(now * 2.3 + index * 1.7) * release * 0.45 * calm)
-      lift.current.scale.setScalar(g * size * (1 + pr * 0.04))
-      // where the hovered petal sits on screen, for the DOM preview card
-      if (hov) {
-        const c = _v1.set(0, PROJECT_PETAL.length * 0.55, 0).applyMatrix4(lift.current.matrixWorld).project(state.camera)
-        bloomAnchor.x = (c.x * 0.5 + 0.5) * state.size.width
-        bloomAnchor.y = (-c.y * 0.5 + 0.5) * state.size.height
+      let target = started ? rest : 0.08
+      if (other) target -= 0.14 // neighbours bow back so the chosen petal stands clear
+      if (kind === 'project') target += sh.proximity * 0.14 + sh.bloom * 0.28
+      if (kind === 'inner') target += sh.proximity * 0.08 + sh.bloom * 0.3
+      if (kind === 'crown') target += sh.bloom * 0.2 + sh.proximity * 0.05
+      target += smooth(range(sh.progress, 0.15, 0.45)) * 0.35
+      // a slow breath, each petal on its own phase
+      if (started) target += Math.sin(now * 0.7 + index * 2.1 + BREATH_PHASE[kind]) * 0.02 * calm
+      hinge.current.rotation.x = spring(open.current, target, dt, kind === 'project' ? 38 : 55, 7.5)
+      const g = spring(grow.current, started ? 1 : 0.35, dt, 60, 10)
+
+      const p = sh.progress
+      let release
+      if (kind === 'project') {
+        // release: fly outward along the petal's own length, past the screen edge, tumbling as it goes
+        release = smooth(range(p, 0.42 + index * 0.06, 0.72 + index * 0.06))
+        const pr = fx.current.present
+        lift.current.position.set(0, release * 11, release * 2 - pr * 0.04)
+        lift.current.rotation.set(-release * 0.8, release * (index % 2 ? 1.6 : -1.6), Math.sin(now * 2.3 + index * 1.7) * release * 0.45 * calm)
+        lift.current.scale.setScalar(g * size * (1 + pr * 0.04))
+        // where the hovered petal sits on screen, for the DOM preview card
+        if (hov) {
+          lift.current.updateWorldMatrix(true, false)
+          const c = _v1.set(0, PROJECT_PETAL.length * 0.55, 0).applyMatrix4(lift.current.matrixWorld).project(state.camera)
+          bloomAnchor.x = (c.x * 0.5 + 0.5) * state.size.width
+          bloomAnchor.y = (-c.y * 0.5 + 0.5) * state.size.height
+        }
+      } else {
+        release = kind === 'inner' ? range(p, 0.5, 0.75) : range(p, 0.6, 0.85)
+        lift.current.scale.setScalar(g * size * (1 - smooth(release)) + 0.0001)
       }
-    } else {
-      release = kind === 'inner' ? range(p, 0.5, 0.75) : range(p, 0.6, 0.85)
-      lift.current.scale.setScalar(g * size * (1 - smooth(release)) + 0.0001)
-    }
 
-    const u = mesh.current.material.userData.uniforms
-    u.uTime.value = now
-    u.uHover.value = fx.current.hover
-    u.uDim.value = fx.current.dim
-    u.uGlow.value = 0.85 + sh.bloom * 0.9 + sh.proximity * 0.35 + fx.current.hover * 0.5
-    u.uFlutter.value = calm * (0.012 + sh.bloom * 0.012 + release * 0.04)
-  })
+      const u = mesh.current.material.userData.uniforms
+      u.uTime.value = now
+      u.uHover.value = fx.current.hover
+      u.uDim.value = fx.current.dim
+      u.uGlow.value = 0.85 + sh.bloom * 0.9 + sh.proximity * 0.35 + fx.current.hover * 0.5
+      u.uFlutter.value = calm * (0.012 + sh.bloom * 0.012 + release * 0.04)
+    })
 
-  return (
-    <group rotation-y={azimuth}>
-      <group position-z={PETAL_BASE[kind]}>
-        <group ref={hinge}>
-          <group ref={lift}>
-            <mesh ref={mesh} geometry={geometry} material={material} userData={{ projectId }} />
+    return (
+      <group rotation-y={azimuth}>
+        <group position-z={PETAL_BASE[kind]}>
+          <group ref={hinge}>
+            <group ref={lift}>
+              <mesh ref={mesh} geometry={geometry} material={material} userData={{ projectId }} />
+            </group>
           </group>
         </group>
       </group>
-    </group>
-  )
-}
-
-function Pollen({ count, shared }) {
-  const ref = useRef()
-  const clock = useRef(0)
-  const { geometry, material } = useMemo(() => {
-    const pos = new Float32Array(count * 3)
-    const size = new Float32Array(count)
-    const seed = new Float32Array(count)
-    const col = new Float32Array(count * 3)
-    const specks = [palette.paper.hi, palette.paper.hi, palette.iris[300], palette.iris[300], palette.iris[400], palette.marigold[300], palette.iris[600]].map((c) => new THREE.Color(c))
-    for (let i = 0; i < count; i++) {
-      const z = -6 + rand(i, 3) * 11
-      pos.set([(rand(i, 1) - 0.5) * 22, -6 + rand(i, 2) * 12, z], i * 3)
-      const r = rand(i, 5)
-      // ~7% large bokeh (mostly near the camera), ~25% mid pollen, the rest fine sparkles
-      size[i] = r > 0.93 ? 0.28 + rand(i, 6) * 0.32 : r > 0.68 ? 0.085 + rand(i, 6) * 0.06 : 0.035 + rand(i, 6) * 0.035
-      if (r > 0.93) pos[i * 3 + 2] = 1.5 + rand(i, 9) * 3
-      seed[i] = rand(i, 8)
-      const c = specks[Math.floor(rand(i, 7) * specks.length)]
-      col.set([c.r, c.g, c.b], i * 3)
-    }
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-    geometry.setAttribute('aSize', new THREE.BufferAttribute(size, 1))
-    geometry.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1))
-    geometry.setAttribute('aColor', new THREE.BufferAttribute(col, 3))
-    const material = new THREE.ShaderMaterial({
-      vertexShader: POLLEN_VERT,
-      fragmentShader: POLLEN_FRAG,
-      transparent: true,
-      depthWrite: false,
-      uniforms: {
-        uTime: { value: 0 },
-        uPixel: { value: 1 },
-        uScale: { value: 400 },
-        uRise: { value: 0 },
-        uOpacity: { value: 0 },
-      },
-    })
-    return { geometry, material }
-  }, [count])
-
-  useFrame((state, dt) => {
-    const sh = shared.current
-    clock.current += Math.min(dt, 0.05) * (1 + sh.bloom * 4) * (sh.reduced ? 0.25 : 1)
-    const u = ref.current.material.uniforms
-    u.uTime.value = clock.current
-    u.uPixel.value = state.gl.getPixelRatio()
-    u.uScale.value = (state.size.height * 0.5) / Math.tan(THREE.MathUtils.degToRad(state.camera.fov / 2))
-    u.uRise.value = sh.progress * 3
-    u.uOpacity.value = Math.max(0, Math.min(1, (state.clock.elapsedTime - sh.start) / 2))
-  })
-
-  return <points ref={ref} geometry={geometry} material={material} frustumCulled={false} />
-}
-
-
-/* ─── Main scene ─────────────────────────────────────────── */
-export default function HeroScene3D() {
-  const { viewport, size, camera } = useThree()
-  const smoothScroll = useSmoothScroll()
-  const narrow = size.width < 768
-  const mobile = narrow || size.width * size.height < 700_000
-
-  // every petal gets its own shape and material (one shared shader program)
-  const petals = useMemo(
-    () => ({
-      project: PETAL_PROJECTS.map((_, i) => petalPart(PROJECT_PETAL, i, PETAL_TONE.project)),
-      inner: [0, 1, 2, 3].map((i) => petalPart(INNER_PETAL, 4 + i, PETAL_TONE.inner)),
-      crown: CROWN.map((_, i) => petalPart(CROWN_PETAL, 8 + i, PETAL_TONE.crown)),
-      loose: Array.from({ length: LOOSE_COUNT.desktop }, (_, i) => petalPart(LOOSE_PETAL, 20 + i, PETAL_TONE.loose)),
-    }),
-    []
-  )
-
-  // a soft violet shadow under the flower
-  const floorTex = useMemo(
-    () =>
-      radialTexture([
-        [0, palette.alpha(palette.iris[700], 0.5)],
-        [0.35, palette.alpha(palette.iris[600], 0.22)],
-        [0.7, palette.alpha(palette.iris[400], 0.08)],
-        [1, palette.alpha(palette.iris[400], 0)],
-      ]),
-    []
-  )
-  const atmosphere = useMemo(() => makeAtmosphere(), [])
-
-  // R3F only disposes what it builds from JSX, so free the flower's GPU copies when the hero unmounts
-  useEffect(
-    () => () => {
-      Object.values(petals)
-        .flat()
-        .forEach(({ geometry, material }) => {
-          geometry.dispose()
-          material.dispose()
-        })
-      floorTex.dispose()
-    },
-    [petals, floorTex]
-  )
-
-  const shared = useRef({ start: Infinity, reduced: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, progress: 0, proximity: 0, bloom: 0, bloomAt: -10, hovered: null, yaw: 0, yawVel: 0 })
-  const root = useRef()
-  const tilt = useRef()
-  const spin = useRef()
-  const backdrop = useRef()
-  const loose = useRef()
-  const floor = useRef()
-  const pointer = useRef({ down: false, moved: false, held: false, holdTimer: 0, target: null })
-
-  const looseDefs = useMemo(
-    () =>
-      Array.from({ length: mobile ? LOOSE_COUNT.mobile : LOOSE_COUNT.desktop }, (_, i) => ({
-        pos: [(i % 2 ? 1 : -1) * (3.4 + ((i * 1.7) % 2.5)), -1.6 + ((i * 1.3) % 3.4), -1 + ((i * 2.1) % 3)],
-        rot: [i * 1.1, i * 0.7, i * 0.3],
-        s: 0.8 + (i % 3) * 0.35,
-      })),
-    [mobile]
-  )
-
-  /* Pointer: hover, click, drag to spin, press-and-hold to bloom */
-  const petalId = (e) => e.object?.userData?.projectId || null
-  const onOver = (e) => {
-    const id = petalId(e)
-    if (!id || e.pointerType === 'touch' || shared.current.progress > 0.04) return
-    e.stopPropagation()
-    shared.current.hovered = id
-    setBloom({ hovered: id })
-    document.body.style.cursor = 'pointer'
+    )
   }
-  const onOut = (e) => {
-    if (!petalId(e) || e.pointerType === 'touch') return
-    shared.current.hovered = null
-    setBloom({ hovered: null })
-    document.body.style.cursor = ''
-  }
-  const onDown = (e) => {
-    e.stopPropagation()
-    const pt = pointer.current
-    Object.assign(pt, { down: true, moved: false, held: false, x: e.clientX, y: e.clientY, lastX: e.clientX, target: petalId(e) })
-    clearTimeout(pt.holdTimer)
-    pt.holdTimer = setTimeout(() => {
-      if (pt.down && !pt.moved) {
-        shared.current.bloomAt = performance.now() / 1000
-        pt.held = true
-        setBloom({ bloomed: true })
+
+  function Pollen({ count, shared }) {
+    const ref = useRef()
+    const clock = useRef(0)
+    const { geometry, material } = useMemo(() => {
+      const pos = new Float32Array(count * 3)
+      const size = new Float32Array(count)
+      const seed = new Float32Array(count)
+      const col = new Float32Array(count * 3)
+      const specks = [palette.paper.hi, palette.paper.hi, palette.iris[300], palette.iris[300], palette.iris[400], palette.marigold[300], palette.iris[600]].map((c) => new THREE.Color(c))
+      for (let i = 0; i < count; i++) {
+        const z = -6 + rand(i, 3) * 11
+        pos.set([(rand(i, 1) - 0.5) * 22, -6 + rand(i, 2) * 12, z], i * 3)
+        const r = rand(i, 5)
+        // ~7% large bokeh (mostly near the camera), ~25% mid pollen, the rest fine sparkles
+        size[i] = r > 0.93 ? 0.28 + rand(i, 6) * 0.32 : r > 0.68 ? 0.085 + rand(i, 6) * 0.06 : 0.035 + rand(i, 6) * 0.035
+        if (r > 0.93) pos[i * 3 + 2] = 1.5 + rand(i, 9) * 3
+        seed[i] = rand(i, 8)
+        const c = specks[Math.floor(rand(i, 7) * specks.length)]
+        col.set([c.r, c.g, c.b], i * 3)
       }
-    }, 550)
-  }
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+      geometry.setAttribute('aSize', new THREE.BufferAttribute(size, 1))
+      geometry.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1))
+      geometry.setAttribute('aColor', new THREE.BufferAttribute(col, 3))
+      const material = new THREE.ShaderMaterial({
+        vertexShader: POLLEN_VERT,
+        fragmentShader: POLLEN_FRAG,
+        transparent: true,
+        depthWrite: false,
+        uniforms: {
+          uTime: { value: 0 },
+          uPixel: { value: 1 },
+          uScale: { value: 400 },
+          uRise: { value: 0 },
+          uOpacity: { value: 0 },
+        },
+      })
+      return { geometry, material }
+    }, [count])
 
-  useEffect(() => {
-    const pt = pointer.current
-    const move = (e) => {
-      if (!pt.down) return
-      if (Math.hypot(e.clientX - pt.x, e.clientY - pt.y) > 6) pt.moved = true
-      if (pt.moved) {
-        shared.current.yawVel = (e.clientX - pt.lastX) * 0.012
-        shared.current.yaw += shared.current.yawVel
-      }
-      pt.lastX = e.clientX
-    }
-    const up = (e) => {
-      if (!pt.down) return
-      clearTimeout(pt.holdTimer)
-      pt.down = false
-      if (pt.moved || pt.held) return
+    useFrame((state, dt) => {
       const sh = shared.current
-      const touch = e.pointerType === 'touch'
-      if (touch && pt.target && sh.hovered !== pt.target) {
-        sh.hovered = pt.target // first tap: preview
-        sh.previewAt = performance.now()
-        setBloom({ hovered: pt.target })
-        return
-      }
-      if (pt.target) {
-        if (smoothScroll?.scrollTo) smoothScroll.scrollTo('#projects', { offset: -80 })
-        else document.getElementById('projects')?.scrollIntoView()
-      } else if (touch && sh.hovered) {
-        sh.hovered = null
-        setBloom({ hovered: null })
-      }
-    }
-    window.addEventListener('pointermove', move, { passive: true })
-    window.addEventListener('pointerup', up)
-    return () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      document.body.style.cursor = ''
-      setBloom({ ready: false, hovered: null })
-    }
-  }, [smoothScroll])
+      clock.current += Math.min(dt, 0.05) * (1 + sh.bloom * 4) * (sh.reduced ? 0.25 : 1)
+      const u = ref.current.material.uniforms
+      u.uTime.value = clock.current
+      u.uPixel.value = state.gl.getPixelRatio()
+      u.uScale.value = (state.size.height * 0.5) / Math.tan(THREE.MathUtils.degToRad(state.camera.fov / 2))
+      u.uRise.value = sh.progress * 3
+      u.uOpacity.value = Math.max(0, Math.min(1, (state.clock.elapsedTime - sh.start) / 2))
+    })
 
-  useFrame((state, dt) => {
-    dt = Math.min(dt, 0.05)
-    const sh = shared.current
-    const t = state.clock.elapsedTime
-    // the intro begins the moment the preloader opens (reduced motion: already in bloom)
-    if (!sh.started && getBloom().phase === 'live') {
-      sh.started = true
-      sh.start = sh.reduced ? t - 10 : t
-    }
-    // the store is the source of truth for hover (pointer, touch preview, keyboard focus)
-    const storeHover = getBloom().hovered
-    if (storeHover !== sh.hovered) sh.hovered = storeHover
-    if (sh.nameReady && !sh.announced) {
-      sh.announced = true
-      setBloom({ ready: true })
+    return <points ref={ref} geometry={geometry} material={material} frustumCulled={false} />
+  }
+
+
+  /* ─── Main scene ─────────────────────────────────────────── */
+  export default function HeroScene3D() {
+    const { viewport, size, camera } = useThree()
+    const smoothScroll = useSmoothScroll()
+    const narrow = size.width < 768
+    const mobile = narrow || size.width * size.height < 700_000
+
+    // every petal gets its own shape and material (one shared shader program)
+    const petals = useMemo(
+      () => ({
+        project: PETAL_PROJECTS.map((_, i) => petalPart(PROJECT_PETAL, i, PETAL_TONE.project)),
+        inner: [0, 1, 2, 3].map((i) => petalPart(INNER_PETAL, 4 + i, PETAL_TONE.inner)),
+        crown: CROWN.map((_, i) => petalPart(CROWN_PETAL, 8 + i, PETAL_TONE.crown)),
+        loose: Array.from({ length: LOOSE_COUNT.desktop }, (_, i) => petalPart(LOOSE_PETAL, 20 + i, PETAL_TONE.loose)),
+      }),
+      []
+    )
+
+    // a soft violet shadow under the flower
+    const floorTex = useMemo(
+      () =>
+        radialTexture([
+          [0, palette.alpha(palette.iris[700], 0.5)],
+          [0.35, palette.alpha(palette.iris[600], 0.22)],
+          [0.7, palette.alpha(palette.iris[400], 0.08)],
+          [1, palette.alpha(palette.iris[400], 0)],
+        ]),
+      []
+    )
+    const atmosphere = useMemo(() => makeAtmosphere(), [])
+
+    // R3F only disposes what it builds from JSX, so free the flower's GPU copies when the hero unmounts
+    useEffect(
+      () => () => {
+        Object.values(petals)
+          .flat()
+          .forEach(({ geometry, material }) => {
+            geometry.dispose()
+            material.dispose()
+          })
+        floorTex.dispose()
+      },
+      [petals, floorTex]
+    )
+
+    const shared = useRef({ start: Infinity, reduced: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, progress: 0, proximity: 0, bloom: 0, bloomAt: -10, hovered: null, openMode: null, yaw: 0, yawVel: 0 })
+    const root = useRef()
+    const tilt = useRef()
+    const spin = useRef()
+    const backdrop = useRef()
+    const loose = useRef()
+    const floor = useRef()
+    const petalLifts = useRef({})
+    const threeRef = useRef({ size, camera })
+    useEffect(() => {
+      threeRef.current = { size, camera }
+    }, [size, camera])
+    const pointer = useRef({
+      down: false,
+      moved: false,
+      held: false,
+      holdTimer: 0,
+      outTimer: 0,
+      lastTouchAt: 0,
+      nativeStamp: 0,
+      target: null,
+      outside: false,
+      outsideId: null,
+      outsideMoved: false,
+      ox: 0,
+      oy: 0,
+    })
+
+    const registerLift = useMemo(
+      () => (id, node) => {
+        if (node) petalLifts.current[id] = node
+        else delete petalLifts.current[id]
+      },
+      []
+    )
+
+    const syncAnchor = (id) => {
+      const r = root.current
+      if (!r) return
+      const { size: sz, camera: cam } = threeRef.current
+      r.updateMatrixWorld(true)
+      const c = _v1.setFromMatrixPosition(r.matrixWorld).project(cam)
+      const e = _v2.setFromMatrixPosition(r.matrixWorld)
+      e.x += PROJECT_PETAL.length * (r.scale.x || 1) * 1.15
+      e.project(cam)
+      bloomAnchor.cx = (c.x * 0.5 + 0.5) * sz.width
+      bloomAnchor.cy = (-c.y * 0.5 + 0.5) * sz.height
+      bloomAnchor.r = Math.abs(e.x - c.x) * 0.5 * sz.width
+      const liftObj = id ? petalLifts.current[id] : null
+      if (liftObj) {
+        liftObj.updateWorldMatrix(true, false)
+        const pt = _v1.set(0, PROJECT_PETAL.length * 0.55, 0).applyMatrix4(liftObj.matrixWorld).project(cam)
+        bloomAnchor.x = (pt.x * 0.5 + 0.5) * sz.width
+        bloomAnchor.y = (-pt.y * 0.5 + 0.5) * sz.height
+      }
     }
 
-    // Scroll progress through the pinned hero
-    const el = document.getElementById('home')
-    let target = 0
-    if (el) {
-      const r = el.getBoundingClientRect()
-      target = clamp01(-r.top / Math.max(1, r.height - window.innerHeight))
-    }
-    easing.damp(sh, 'progress', target, 0.1, dt)
-    const p = sh.progress
-    // hover never survives scrolling; touch previews also close themselves
-    if (sh.hovered && (p > 0.04 || (sh.previewAt && performance.now() - sh.previewAt > 6000))) {
-      sh.previewAt = 0
-      sh.hovered = null
+    const closePreview = () => {
+      clearTimeout(pointer.current.outTimer)
+      shared.current.hovered = null
+      shared.current.openMode = null
       setBloom({ hovered: null })
       document.body.style.cursor = ''
     }
 
-    // Press-and-hold bloom decays after a few seconds
-    const sinceBloom = performance.now() / 1000 - sh.bloomAt
-    easing.damp(sh, 'bloom', sinceBloom < 2.6 ? 1 : 0, sinceBloom < 2.6 ? 0.25 : 0.8, dt)
-    if (sinceBloom > 2.6 && sh.bloom < 0.05 && sh.bloom > 0.0001) setBloom({ bloomed: false })
+    const looseDefs = useMemo(
+      () =>
+        Array.from({ length: mobile ? LOOSE_COUNT.mobile : LOOSE_COUNT.desktop }, (_, i) => ({
+          pos: [(i % 2 ? 1 : -1) * (3.4 + ((i * 1.7) % 2.5)), -1.6 + ((i * 1.3) % 3.4), -1 + ((i * 2.1) % 3)],
+          rot: [i * 1.1, i * 0.7, i * 0.3],
+          s: 0.8 + (i % 3) * 0.35,
+        })),
+      [mobile]
+    )
 
-    // Proximity: how close the cursor is to the flower on screen
-    const flowerY = narrow ? 0 : -0.15
-    const dist = Math.hypot(state.pointer.x * (size.width / size.height), state.pointer.y - flowerY)
-    easing.damp(sh, 'proximity', clamp01(1 - (dist - 0.25) / 0.9), 0.3, dt)
-
-    // Camera dolly
-    easing.damp3(camera.position, [0, -p * 0.3, CAM_Z - smooth(range(p, 0, 0.45)) * 1.4], 0.2, dt)
-    camera.lookAt(0, -p * 0.3, 0)
-
-    // Placement
-    const scale = narrow ? Math.min(viewport.width * 0.185, 0.8) : Math.min(viewport.width * 0.084, 1.18)
-    const baseY = narrow ? viewport.height * 0.01 : -0.45
-    root.current.scale.setScalar(scale)
-    const calm = sh.reduced ? 0 : 1
-    root.current.position.set(0, baseY + smooth(range(p, 0, 0.35)) * 0.6 + Math.sin(t * 0.8) * 0.04 * calm, 0.4)
-
-    // Flower centre and radius in CSS pixels, for placing the preview card beside it
-    if (sh.hovered) {
-      const c = _v1.setFromMatrixPosition(root.current.matrixWorld).project(camera)
-      const e = _v2.setFromMatrixPosition(root.current.matrixWorld)
-      e.x += PROJECT_PETAL.length * scale * 1.15
-      e.project(camera)
-      bloomAnchor.cx = (c.x * 0.5 + 0.5) * size.width
-      bloomAnchor.cy = (-c.y * 0.5 + 0.5) * size.height
-      bloomAnchor.r = Math.abs(e.x - c.x) * 0.5 * size.width
+    /* Pointer: hover, click, drag to spin, press-and-hold to bloom */
+    const petalId = (e) => e.object?.userData?.projectId || null
+    const canHover = () => typeof window === 'undefined' || !window.matchMedia('(hover: none)').matches
+    const onOver = (e) => {
+      const id = petalId(e)
+      if (!id || e.pointerType === 'touch' || !canHover() || shared.current.progress > 0.04) return
+      if (performance.now() - pointer.current.lastTouchAt < 650) return
+      e.stopPropagation()
+      clearTimeout(pointer.current.outTimer)
+      if (shared.current.hovered === id) return
+      shared.current.hovered = id
+      shared.current.openMode = 'hover'
+      syncAnchor(id)
+      setBloom({ hovered: id })
+      document.body.style.cursor = 'pointer'
+    }
+    const onOut = (e) => {
+      const id = petalId(e)
+      if (!id || e.pointerType === 'touch' || !canHover()) return
+      e.stopPropagation()
+      if (shared.current.openMode === 'tap' || shared.current.hovered !== id) return
+      clearTimeout(pointer.current.outTimer)
+      pointer.current.outTimer = setTimeout(() => {
+        if (shared.current.openMode !== 'tap' && shared.current.hovered === id) closePreview()
+      }, 85)
+    }
+    const onDown = (e) => {
+      e.stopPropagation()
+      if (e.pointerType === 'touch') pointer.current.lastTouchAt = performance.now()
+      const pt = pointer.current
+      Object.assign(pt, {
+        down: true,
+        moved: false,
+        held: false,
+        x: e.clientX,
+        y: e.clientY,
+        lastX: e.clientX,
+        target: petalId(e),
+        nativeStamp: e.nativeEvent?.timeStamp ?? 0,
+      })
+      clearTimeout(pt.holdTimer)
+      pt.holdTimer = setTimeout(() => {
+        if (pt.down && !pt.moved) {
+          shared.current.bloomAt = performance.now() / 1000
+          pt.held = true
+          setBloom({ bloomed: true })
+        }
+      }, 550)
     }
 
-    // Heliotropism (turns toward the cursor) + drag spin with inertia
-    sh.yawVel *= Math.exp(-2.2 * dt)
-    if (!pointer.current.down) sh.yaw += sh.yawVel
-    const lean = smooth(range(p, 0.12, 0.45)) * 0.55
-    easing.dampE(
-      tilt.current.rotation,
-      [1.22 + lean * 0.5 - state.pointer.y * 0.14, state.pointer.x * 0.32, -state.pointer.x * 0.05],
-      0.45,
-      dt
-    )
-    spin.current.rotation.y = sh.yaw + p * 1.4 + Math.sin(t * 0.25) * 0.08 * calm + Math.PI / 4
+    useEffect(() => {
+      const pt = pointer.current
+      const winDown = (e) => {
+        if (e.pointerType === 'touch') pt.lastTouchAt = performance.now()
+        // Ignore the same pointerdown that R3F already claimed on a flower mesh
+        if (pt.down && pt.nativeStamp === e.timeStamp) return
+        if (!getBloom().hovered) return
+        if (e.target instanceof Element && e.target.closest('[data-petal-preview]')) return
+        pt.outside = true
+        pt.outsideId = e.pointerId
+        pt.outsideMoved = false
+        pt.ox = e.clientX
+        pt.oy = e.clientY
+      }
+      const move = (e) => {
+        if (pt.outside && e.pointerId === pt.outsideId) {
+          if (Math.hypot(e.clientX - pt.ox, e.clientY - pt.oy) > 8) pt.outsideMoved = true
+        }
+        if (!pt.down) return
+        if (Math.hypot(e.clientX - pt.x, e.clientY - pt.y) > 6) pt.moved = true
+        if (pt.moved) {
+          shared.current.yawVel = (e.clientX - pt.lastX) * 0.012
+          shared.current.yaw += shared.current.yawVel
+        }
+        pt.lastX = e.clientX
+      }
+      const up = (e) => {
+        if (e.pointerType === 'touch') pt.lastTouchAt = performance.now()
+        if (pt.outside && e.pointerId === pt.outsideId) {
+          const wasMoved = pt.outsideMoved
+          pt.outside = false
+          pt.outsideId = null
+          if (!wasMoved && getBloom().hovered) closePreview()
+        }
+        if (!pt.down) return
+        clearTimeout(pt.holdTimer)
+        pt.down = false
+        if (pt.moved || pt.held) return
+        const sh = shared.current
+        const touch = e.pointerType === 'touch' || !canHover()
+        if (touch && pt.target && sh.hovered !== pt.target) {
+          clearTimeout(pt.outTimer)
+          sh.hovered = pt.target // first tap: preview
+          sh.openMode = 'tap'
+          syncAnchor(pt.target)
+          setBloom({ hovered: pt.target })
+          return
+        }
+        if (pt.target) {
+          closePreview()
+          if (smoothScroll?.scrollTo) smoothScroll.scrollTo('#projects', { offset: -80 })
+          else document.getElementById('projects')?.scrollIntoView()
+        } else if (sh.hovered) {
+          closePreview()
+        }
+      }
+      const onKey = (e) => {
+        if (e.key === 'Escape' && getBloom().hovered) closePreview()
+      }
+      window.addEventListener('pointerdown', winDown, { passive: true })
+      window.addEventListener('pointermove', move, { passive: true })
+      window.addEventListener('pointerup', up)
+      window.addEventListener('pointercancel', up)
+      window.addEventListener('keydown', onKey)
+      return () => {
+        clearTimeout(pt.holdTimer)
+        clearTimeout(pt.outTimer)
+        window.removeEventListener('pointerdown', winDown)
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', up)
+        window.removeEventListener('pointercancel', up)
+        window.removeEventListener('keydown', onKey)
+        document.body.style.cursor = ''
+        setBloom({ ready: false, hovered: null })
+      }
+    }, [smoothScroll])
 
-    // Loose petals drift and tumble, rocking like real petals on the air
-    loose.current.children.forEach((m, i) => {
-      const d = looseDefs[i]
-      m.rotation.set(
-        d.rot[0] + Math.sin(t * 0.5 + i * 1.3) * 0.6 * calm,
-        d.rot[1] + t * 0.12 * calm,
-        d.rot[2] + Math.sin(t * 0.8 + i * 2.2) * 0.35 * calm
+    useFrame((state, dt) => {
+      dt = Math.min(dt, 0.05)
+      const sh = shared.current
+      const t = state.clock.elapsedTime
+      // the intro begins the moment the preloader opens (reduced motion: already in bloom)
+      if (!sh.started && getBloom().phase === 'live') {
+        sh.started = true
+        sh.start = sh.reduced ? t - 10 : t
+      }
+      // the store is the source of truth for hover (pointer, touch preview, keyboard focus)
+      const storeHover = getBloom().hovered
+      if (storeHover !== sh.hovered) sh.hovered = storeHover
+      if (sh.nameReady && !sh.announced) {
+        sh.announced = true
+        setBloom({ ready: true })
+      }
+
+      // Scroll progress through the pinned hero
+      const el = document.getElementById('home')
+      let target = 0
+      if (el) {
+        const r = el.getBoundingClientRect()
+        target = clamp01(-r.top / Math.max(1, r.height - window.innerHeight))
+      }
+      easing.damp(sh, 'progress', target, 0.1, dt)
+      const p = sh.progress
+      // hover never survives scrolling
+      if (sh.hovered && p > 0.04) closePreview()
+
+      // Press-and-hold bloom decays after a few seconds
+      const sinceBloom = performance.now() / 1000 - sh.bloomAt
+      easing.damp(sh, 'bloom', sinceBloom < 2.6 ? 1 : 0, sinceBloom < 2.6 ? 0.25 : 0.8, dt)
+      if (sinceBloom > 2.6 && sh.bloom < 0.05 && sh.bloom > 0.0001) setBloom({ bloomed: false })
+
+      // Proximity: how close the cursor is to the flower on screen
+      const flowerY = narrow ? 0 : -0.15
+      const dist = Math.hypot(state.pointer.x * (size.width / size.height), state.pointer.y - flowerY)
+      easing.damp(sh, 'proximity', clamp01(1 - (dist - 0.25) / 0.9), 0.3, dt)
+
+      // Camera dolly
+      easing.damp3(camera.position, [0, -p * 0.3, CAM_Z - smooth(range(p, 0, 0.45)) * 1.4], 0.2, dt)
+      camera.lookAt(0, -p * 0.3, 0)
+
+      // Placement
+      const scale = narrow ? Math.min(viewport.width * 0.185, 0.8) : Math.min(viewport.width * 0.084, 1.18)
+      const baseY = narrow ? viewport.height * 0.01 : -0.45
+      root.current.scale.setScalar(scale)
+      const calm = sh.reduced ? 0 : 1
+      root.current.position.set(0, baseY + smooth(range(p, 0, 0.35)) * 0.6 + Math.sin(t * 0.8) * 0.04 * calm, 0.4)
+
+      // Flower centre and radius in CSS pixels, for placing the preview card beside it
+      if (sh.hovered) {
+        root.current.updateMatrixWorld(true)
+        const c = _v1.setFromMatrixPosition(root.current.matrixWorld).project(camera)
+        const e = _v2.setFromMatrixPosition(root.current.matrixWorld)
+        e.x += PROJECT_PETAL.length * scale * 1.15
+        e.project(camera)
+        bloomAnchor.cx = (c.x * 0.5 + 0.5) * size.width
+        bloomAnchor.cy = (-c.y * 0.5 + 0.5) * size.height
+        bloomAnchor.r = Math.abs(e.x - c.x) * 0.5 * size.width
+      }
+
+      // Heliotropism (turns toward the cursor) + drag spin with inertia
+      sh.yawVel *= Math.exp(-2.2 * dt)
+      if (!pointer.current.down) sh.yaw += sh.yawVel
+      const lean = smooth(range(p, 0.12, 0.45)) * 0.55
+      easing.dampE(
+        tilt.current.rotation,
+        [1.22 + lean * 0.5 - state.pointer.y * 0.14, state.pointer.x * 0.32, -state.pointer.x * 0.05],
+        0.45,
+        dt
       )
-      const u = m.material.userData.uniforms
-      u.uTime.value = t
-      u.uFlutter.value = 0.02 * calm
+      spin.current.rotation.y = sh.yaw + p * 1.4 + Math.sin(t * 0.25) * 0.08 * calm + Math.PI / 4
+
+      // Loose petals drift and tumble, rocking like real petals on the air
+      loose.current.children.forEach((m, i) => {
+        const d = looseDefs[i]
+        m.rotation.set(
+          d.rot[0] + Math.sin(t * 0.5 + i * 1.3) * 0.6 * calm,
+          d.rot[1] + t * 0.12 * calm,
+          d.rot[2] + Math.sin(t * 0.8 + i * 2.2) * 0.35 * calm
+        )
+        const u = m.material.userData.uniforms
+        u.uTime.value = t
+        u.uFlutter.value = 0.02 * calm
+      })
+      loose.current.position.y = Math.sin(t * 0.4) * 0.15 - p * 2.5
+
+      // Atmosphere: resolution, slow drift, and dusk (pearl → periwinkle → navy)
+      const au = backdrop.current.material.uniforms
+      state.gl.getDrawingBufferSize(au.uRes.value)
+      au.uTime.value = t * calm
+      au.uDusk.value = smooth(range(p, 0.72, 1))
+      floor.current.material.opacity = 1 - smooth(range(p, 0.55, 0.85))
+      loose.current.scale.setScalar(Math.max(0.0001, 1 - smooth(range(p, 0.7, 0.95))))
     })
-    loose.current.position.y = Math.sin(t * 0.4) * 0.15 - p * 2.5
 
-    // Atmosphere: resolution, slow drift, and dusk (pearl → periwinkle → navy)
-    const au = backdrop.current.material.uniforms
-    state.gl.getDrawingBufferSize(au.uRes.value)
-    au.uTime.value = t * calm
-    au.uDusk.value = smooth(range(p, 0.72, 1))
-    floor.current.material.opacity = 1 - smooth(range(p, 0.55, 0.85))
-    loose.current.scale.setScalar(Math.max(0.0001, 1 - smooth(range(p, 0.7, 0.95))))
-  })
+    return (
+      <>
+        <Environment resolution={256} frames={1}>
+          <Lightformer intensity={3} position={[0, 6, 3]} scale={[12, 5, 1]} rotation-x={Math.PI / 2} />
+          <Lightformer intensity={5} color={PAL.corn} position={[0, 1.5, -6]} scale={[14, 3, 1]} />
+          <Lightformer intensity={2.5} color={PAL.peri} position={[7, 1, 2]} scale={[3, 9, 1]} rotation-y={-Math.PI / 2} />
+          <Lightformer intensity={1.8} color={palette.paper.hi} position={[-7, 2, 1]} scale={[3, 9, 1]} rotation-y={Math.PI / 2} />
+          <Lightformer intensity={1} color={PAL.pearl} position={[0, -4, 3]} scale={[12, 3, 1]} rotation-x={-Math.PI / 2} />
+        </Environment>
+        <directionalLight position={[2, 6, 5]} intensity={1.2} />
+        <pointLight position={[0, -0.2, 0.6]} color={PAL.corn} intensity={6} distance={4} />
 
-  return (
-    <>
-      <Environment resolution={256} frames={1}>
-        <Lightformer intensity={3} position={[0, 6, 3]} scale={[12, 5, 1]} rotation-x={Math.PI / 2} />
-        <Lightformer intensity={5} color={PAL.corn} position={[0, 1.5, -6]} scale={[14, 3, 1]} />
-        <Lightformer intensity={2.5} color={PAL.peri} position={[7, 1, 2]} scale={[3, 9, 1]} rotation-y={-Math.PI / 2} />
-        <Lightformer intensity={1.8} color={palette.paper.hi} position={[-7, 2, 1]} scale={[3, 9, 1]} rotation-y={Math.PI / 2} />
-        <Lightformer intensity={1} color={PAL.pearl} position={[0, -4, 3]} scale={[12, 3, 1]} rotation-x={-Math.PI / 2} />
-      </Environment>
-      <directionalLight position={[2, 6, 5]} intensity={1.2} />
-      <pointLight position={[0, -0.2, 0.6]} color={PAL.corn} intensity={6} distance={4} />
-
-      {/* Opaque atmosphere behind everything; also carries the dusk */}
-      <mesh ref={backdrop} position={[0, 0, -6]} material={atmosphere}>
-        <planeGeometry args={[120, 120]} />
-      </mesh>
-
-      <NameLines shared={shared} />
-
-      <group ref={root}>
-        {/* soft shadow pool under the flower */}
-        <mesh ref={floor} position={[0, -2.1, 0]} rotation-x={-Math.PI / 2}>
-          <planeGeometry args={[9, 5]} />
-          <meshBasicMaterial map={floorTex} transparent depthWrite={false} toneMapped={false} />
+        {/* Opaque atmosphere behind everything; also carries the dusk */}
+        <mesh ref={backdrop} position={[0, 0, -6]} material={atmosphere}>
+          <planeGeometry args={[120, 120]} />
         </mesh>
 
-        <group ref={tilt}>
-          <group ref={spin}>
-            {PETAL_PROJECTS.map((id, i) => (
-              <group key={id} onPointerOver={onOver} onPointerOut={onOut} onPointerDown={onDown}>
-                <Petal
-                  {...petals.project[i]}
-                  azimuth={i * (Math.PI / 2)}
-                  rest={0.98}
-                  index={i}
-                  kind="project"
-                  shared={shared}
-                  projectId={id}
-                />
+        <NameLines shared={shared} />
+
+        <group ref={root}>
+          {/* soft shadow pool under the flower */}
+          <mesh ref={floor} position={[0, -2.1, 0]} rotation-x={-Math.PI / 2}>
+            <planeGeometry args={[9, 5]} />
+            <meshBasicMaterial map={floorTex} transparent depthWrite={false} toneMapped={false} />
+          </mesh>
+
+          <group ref={tilt}>
+            <group ref={spin}>
+              {PETAL_PROJECTS.map((id, i) => (
+                <group key={id} onPointerOver={onOver} onPointerOut={onOut} onPointerDown={onDown}>
+                  <Petal
+                    {...petals.project[i]}
+                    azimuth={i * (Math.PI / 2)}
+                    rest={0.98}
+                    index={i}
+                    kind="project"
+                    shared={shared}
+                    projectId={id}
+                    registerLift={registerLift}
+                  />
+                </group>
+              ))}
+              <group onPointerDown={onDown}>
+                {/* second, smaller ring between the project petals */}
+                {petals.inner.map((part, i) => (
+                  <Petal
+                    key={`i${i}`}
+                    {...part}
+                    azimuth={i * (Math.PI / 2) + Math.PI / 4}
+                    rest={0.6}
+                    index={i}
+                    kind="inner"
+                    shared={shared}
+                    size={0.7}
+                  />
+                ))}
+                {CROWN.map((c, i) => (
+                  <Petal
+                    key={`c${i}`}
+                    {...petals.crown[i]}
+                    azimuth={c.az}
+                    rest={c.rest}
+                    index={i}
+                    kind="crown"
+                    shared={shared}
+                    size={c.size}
+                  />
+                ))}
               </group>
-            ))}
-            <group onPointerDown={onDown}>
-              {/* second, smaller ring between the project petals */}
-              {petals.inner.map((part, i) => (
-                <Petal
-                  key={`i${i}`}
-                  {...part}
-                  azimuth={i * (Math.PI / 2) + Math.PI / 4}
-                  rest={0.6}
-                  index={i}
-                  kind="inner"
-                  shared={shared}
-                  size={0.7}
-                />
-              ))}
-              {CROWN.map((c, i) => (
-                <Petal
-                  key={`c${i}`}
-                  {...petals.crown[i]}
-                  azimuth={c.az}
-                  rest={c.rest}
-                  index={i}
-                  kind="crown"
-                  shared={shared}
-                  size={c.size}
-                />
-              ))}
+              <FlowerHeart shared={shared} mobile={mobile} onPointerDown={onDown} />
             </group>
-            <FlowerHeart shared={shared} mobile={mobile} onPointerDown={onDown} />
           </group>
         </group>
-      </group>
 
-      <group ref={loose}>
-        {looseDefs.map((d, i) => (
-          <mesh key={i} {...petals.loose[i]} position={d.pos} rotation={d.rot} scale={d.s} />
-        ))}
-      </group>
+        <group ref={loose}>
+          {looseDefs.map((d, i) => (
+            <mesh key={i} {...petals.loose[i]} position={d.pos} rotation={d.rot} scale={d.s} />
+          ))}
+        </group>
 
-      <Pollen count={mobile ? 180 : 520} shared={shared} />
-    </>
-  )
-}
+        <Pollen count={mobile ? 180 : 520} shared={shared} />
+      </>
+    )
+  }

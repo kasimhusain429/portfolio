@@ -8,11 +8,12 @@
  * pans page by page so the writing stays readable.
  */
 import { useEffect, useRef, useState } from 'react'
-import { motion, useMotionValue, useMotionValueEvent, useScroll, useTransform } from 'framer-motion'
+import { motion, useMotionValue, useMotionValueEvent, useTransform } from 'framer-motion'
 import { useSmoothScroll } from '../providers/SmoothScrollProvider'
 import { ENTRIES, STAMPS } from '../data/experience'
 import { easeInOutCubic } from '../lib/motion'
 import { useDevice } from '../hooks/useDevice'
+import { useSectionScroll } from '../hooks/useSectionScroll'
 import { AlbumIntro, BackBoard, CoverFront, Endpaper, EntryLeft, EntryRight, PH, PW, Pocket, TitlePage } from './journal/Pages'
 import { Postmark, StampBack, StampFront } from './journal/Stamps'
 
@@ -173,8 +174,7 @@ function Journal({ compact }) {
   const small = useDevice()?.isSmallScreen ?? false
   const sectionRef = useRef(null)
   const stageRef = useRef(null)
-  const { scrollYProgress: p } = useScroll({ target: sectionRef, offset: ['start start', 'end end'] })
-  const { scrollYProgress: enter } = useScroll({ target: sectionRef, offset: ['start end', 'start start'] })
+  const { progress: p, enter } = useSectionScroll(sectionRef)
 
   // collection grid (book px, centred on the spine)
   const rows = Math.ceil(STAMPS.length / cfg.cols)
@@ -194,7 +194,7 @@ function Journal({ compact }) {
       const w = el.clientWidth
       const h = el.clientHeight
       scale.set(compact ? Math.min(1.1, (w - 24) / BW, (h - 150) / BH) : Math.min(1.15, (w - 140) / (2 * BW), (h - 260) / BH))
-      scaleC.set(compact ? Math.min(1.1, (w - 28) / GW, (h - 250) / GH) : Math.min(1.2, (w - 140) / (GW + 40), (h - 300) / (GH + 20)))
+      scaleC.set(compact ? Math.min(1.1, (w - 28) / GW, (h - 275) / GH) : Math.min(1.2, (w - 140) / (GW + 40), (h - 300) / (GH + 20)))
     }
     fit()
     const ro = new ResizeObserver(fit)
@@ -265,8 +265,9 @@ function Journal({ compact }) {
 
   const goTo = (at) => {
     const el = sectionRef.current
-    const y = el.getBoundingClientRect().top + window.scrollY + (el.offsetHeight - window.innerHeight) * at
-    if (smooth?.scrollTo) smooth.scrollTo(y, { duration: 1.8 })
+    const vh = window.visualViewport?.height || window.innerHeight
+    const y = el.getBoundingClientRect().top + window.scrollY + (el.offsetHeight - vh) * at
+    if (smooth?.scrollTo) smooth.scrollTo(y, { duration: 1.8, offset: 0 })
     else window.scrollTo({ top: y, behavior: 'smooth' })
   }
 
@@ -275,153 +276,153 @@ function Journal({ compact }) {
   return (
     <section id="experience" data-hue="marigold" ref={sectionRef} aria-labelledby="experience-title" className={`relative ${plan.height}`}>
       <span id="achievements" className="absolute left-0 h-px w-px" style={{ top: `${plan.flight[1] * 100 - 4}%` }} aria-hidden="true" />
-      <div ref={stageRef} className="sticky top-0 h-[100svh] overflow-hidden [perspective:2400px]">
-        {/* desk + lamp; the top fades so the colour field from the room above carries into the lamplight */}
-        <div aria-hidden="true" className="absolute inset-0 [mask-image:linear-gradient(180deg,transparent,black_30%,black_82%,transparent)]">
-          <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_60%,var(--color-ink-800)_0%,var(--color-ink-950)_55%,var(--color-ink-950)_100%)]" />
-          <div className="absolute inset-0 opacity-[0.16] [background-image:repeating-linear-gradient(94deg,color-mix(in_srgb,_var(--hue-400)_18%,_transparent)_0_1px,transparent_1px_7px),repeating-linear-gradient(91deg,color-mix(in_srgb,_var(--color-ink-950)_60%,_transparent)_0_2px,transparent_2px_23px)]" />
-          <motion.div
-            style={{ opacity: lamp }}
-            className="absolute left-1/2 top-[52%] h-[95vmin] w-[150vmin] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_srgb,_var(--hue-300)_34%,_transparent),color-mix(in_srgb,_var(--hue-500)_14%,_transparent)_55%,transparent)]"
-          />
-          {Array.from({ length: small ? 6 : 14 }, (_, i) => (
-            <span
-              key={i}
-              className="absolute h-[3px] w-[3px] rounded-full bg-hue-300"
-              style={{
-                left: `${18 + ((i * 47) % 64)}%`,
-                top: `${12 + ((i * 31) % 70)}%`,
-                animation: `mote ${7 + (i % 5)}s ${i * 0.7}s ease-in-out infinite`,
-                filter: 'blur(0.5px)',
-              }}
+        <div ref={stageRef} className="sticky top-0 h-[100dvh] min-h-svh overflow-hidden [perspective:2400px]">
+          {/* desk + lamp; the top fades so the colour field from the room above carries into the lamplight */}
+          <div aria-hidden="true" className="absolute inset-0 [mask-image:linear-gradient(180deg,transparent,black_30%,black_82%,transparent)]">
+            <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_60%,var(--color-ink-800)_0%,var(--color-ink-950)_55%,var(--color-ink-950)_100%)]" />
+            <div className="absolute inset-0 opacity-[0.16] [background-image:repeating-linear-gradient(94deg,color-mix(in_srgb,_var(--hue-400)_18%,_transparent)_0_1px,transparent_1px_7px),repeating-linear-gradient(91deg,color-mix(in_srgb,_var(--color-ink-950)_60%,_transparent)_0_2px,transparent_2px_23px)]" />
+            <motion.div
+              style={{ opacity: lamp }}
+              className="absolute left-1/2 top-[52%] h-[95vmin] w-[150vmin] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_srgb,_var(--hue-300)_34%,_transparent),color-mix(in_srgb,_var(--hue-500)_14%,_transparent)_55%,transparent)]"
             />
-          ))}
-          <div className="absolute inset-0 bg-[radial-gradient(90%_70%_at_50%_50%,transparent_55%,color-mix(in_srgb,_var(--color-ink-950)_75%,_transparent))]" />
-        </div>
-
-        {/* headers: the journal hands over to the collection */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 mx-auto max-w-[1440px] px-5 pt-24 sm:px-8 lg:px-12">
-          <motion.div style={{ opacity: journalHead }} className="absolute inset-x-5 top-24 flex items-start justify-between sm:inset-x-8 lg:inset-x-12">
-            <div>
-              <p className="eyebrow text-hue-300">05 — Experience</p>
-              <h2 id="experience-title" className="mt-3 font-serif text-h2-pin italic text-paper">The field journal</h2>
-            </div>
-            {!compact && (
-              <p className="max-w-[260px] pt-1 text-right text-body-sm text-mist">
-                Three chapters of growing as an engineer, kept the old-fashioned way.
-              </p>
-            )}
-          </motion.div>
-          <motion.div style={{ opacity: albumHead, y: albumHeadY }} className="absolute inset-x-5 top-24 flex items-start justify-between sm:inset-x-8 lg:inset-x-12">
-            <div>
-              <p className="eyebrow text-hue-300">06 — By the numbers{compact && ' · tap to turn'}</p>
-              <h2 className={`mt-3 font-serif italic text-paper ${compact ? 'text-[1.85rem] leading-none' : 'text-h2-pin'}`}>
-                Collected along the way
-              </h2>
-            </div>
-            {!compact && (
-              <p className="max-w-[280px] pt-1 text-right text-body-sm text-mist">
-                The places my work has travelled and the numbers worth keeping. Turn a stamp over to read its story.
-              </p>
-            )}
-          </motion.div>
-        </div>
-
-        {/* the book */}
-        <div className={`absolute left-1/2 ${compact ? 'top-[55%]' : 'top-[55.5%]'} h-0 w-0 [transform-style:preserve-3d]`}>
-          <motion.div style={{ transform }} className="absolute left-0 top-0 [transform-style:preserve-3d]" aria-label="Field journal">
-            <div className="absolute left-0 [transform-style:preserve-3d]" style={{ top: -PH / 2, width: PW, height: PH }}>
-              {/* shadow on the desk */}
-              <motion.div
-                aria-hidden="true"
-                style={{ left: shadowL, width: shadowW, transform: 'translateZ(-8px)' }}
-                className="absolute -bottom-[14px] -top-[2px] rounded-[14px] bg-[color-mix(in_srgb,_var(--color-ink-950)_75%,_transparent)] blur-[22px]"
+            {Array.from({ length: small ? 6 : 14 }, (_, i) => (
+              <span
+                key={i}
+                className="absolute h-[3px] w-[3px] rounded-full bg-hue-300"
+                style={{
+                  left: `${18 + ((i * 47) % 64)}%`,
+                  top: `${12 + ((i * 31) % 70)}%`,
+                  animation: `mote ${7 + (i % 5)}s ${i * 0.7}s ease-in-out infinite`,
+                  filter: 'blur(0.5px)',
+                }}
               />
-              {!compact && (
-                <div className="absolute left-[calc(100%+120px)] top-[60px]" style={{ transform: 'translateZ(2px) rotate(16deg)' }}>
-                  <div className="absolute left-[10px] top-[16px] h-[400px] w-[30px] rounded-full bg-[color-mix(in_srgb,_var(--color-ink-950)_60%,_transparent)] blur-[8px]" />
-                  <Pen />
-                </div>
-              )}
-              {/* back board, inside back cover and its pocket */}
-              <div className="journal-cloth absolute left-0 rounded-r-[10px]" style={{ top: -9, width: BW, height: BH, transform: 'translateZ(-1px)' }} />
-              <BackBoard />
-              <motion.div
-                aria-hidden="true"
-                style={{ opacity: edges, transform: 'translateZ(0.1px)' }}
-                className="pointer-events-none absolute inset-0 shadow-[1px_1px_0_var(--color-paper-2),2px_2px_0_var(--color-paper),3px_3px_0_var(--color-paper-2),4px_4px_0_var(--color-paper),5px_5px_0_var(--color-paper-2)]"
-              />
-              <span aria-hidden="true" className="absolute left-[8px] top-0 h-[calc(100%+46px)] w-[11px] bg-[linear-gradient(90deg,var(--hue-700),var(--hue-500)_45%,var(--hue-400)_60%,var(--hue-700))] [clip-path:polygon(0_0,100%_0,100%_100%,50%_calc(100%-9px),0_100%)]" style={{ transform: 'translateZ(0.2px)' }} />
-              <div className="absolute" style={{ left: POCKET.x, top: POCKET.y, width: POCKET.w, height: POCKET.h, transform: 'translateZ(1.2px)' }}>
-                <Pocket />
-              </div>
-
-              {/* leaves, top of the stack last */}
-              <Leaf p={p} range={plan.leaves[4]} z={3} front={<EntryRight e={e3} on={level >= 7} n={6} />} back={<AlbumIntro on={level >= 8} n={7} />} />
-              <Leaf p={p} range={plan.leaves[3]} z={4} front={<EntryRight e={e2} on={level >= 5} n={4} />} back={<EntryLeft e={e3} on={level >= 6} n={5} />} />
-              <Leaf p={p} range={plan.leaves[2]} z={5} front={<EntryRight e={e1} on={level >= 3} n={2} />} back={<EntryLeft e={e2} on={level >= 4} n={3} />} />
-              <Leaf p={p} range={plan.leaves[1]} z={6} front={<TitlePage on={level >= 1} entries={ENTRIES} />} back={<EntryLeft e={e1} on={level >= 2} n={1} />} />
-              <Leaf p={p} range={plan.leaves[0]} z={7} board front={<CoverFront bandStyle={band} />} back={<Endpaper />} />
-
-              {/* the room dims as the stamps rise out of the pocket */}
-              <motion.div
-                aria-hidden="true"
-                style={{ opacity: dim, transform: 'translateZ(14px)' }}
-                className="pointer-events-none absolute left-[-2400px] top-[-2400px] h-[5000px] w-[5000px] bg-[radial-gradient(closest-side,color-mix(in_srgb,_var(--color-ink-950)_55%,_transparent),color-mix(in_srgb,_var(--color-ink-950)_97%,_transparent)_60%)]"
-              />
-
-              {/* stamps */}
-              {STAMPS.map((s, i) => (
-                <Stamp
-                  key={s.id}
-                  s={s}
-                  i={i}
-                  cT={cT}
-                  cfg={cfg}
-                  grid={grid}
-                  landed={landed}
-                  hovered={hovered === s.id}
-                  flipped={flipped.has(s.id)}
-                  onHover={setHovered}
-                  onFlip={flip}
-                />
-              ))}
-            </div>
-          </motion.div>
-        </div>
-
-        {/* chapters */}
-        <nav aria-label="Journal chapters" className="absolute inset-x-0 bottom-5 z-10 flex justify-center px-3 sm:bottom-8">
-          <ol className="segmented flex-nowrap gap-0.5 sm:gap-1">
-            {plan.chapters.map(([label, at], i) => (
-              <li key={label}>
-                <button
-                  type="button"
-                  onClick={() => goTo(at)}
-                  aria-current={chapter === i ? 'step' : undefined}
-                  className="segment max-sm:min-h-9 max-sm:px-2 max-sm:text-[12px]"
-                >
-                  {!compact && <span aria-hidden="true" className="font-serif italic opacity-70">{['·', 'i', 'I', 'II', 'III', '✦'][i]}</span>}
-                  {label}
-                </button>
-              </li>
             ))}
-          </ol>
-        </nav>
-        <motion.p
-          style={{ opacity: hint }}
-          className={`pointer-events-none absolute inset-x-0 z-10 text-center font-mono text-eyebrow uppercase tracking-[0.24em] text-hue-300 ${compact ? 'bottom-[72px]' : 'bottom-[84px]'}`}
-        >
-          Scroll to open the journal
-        </motion.p>
-        {!compact && (
-          <p
-            className={`pointer-events-none absolute inset-x-0 bottom-[80px] z-10 text-center font-mono text-eyebrow uppercase tracking-[0.24em] text-hue-300 transition-opacity duration-700 ${landed ? 'opacity-100' : 'opacity-0'}`}
+            <div className="absolute inset-0 bg-[radial-gradient(90%_70%_at_50%_50%,transparent_55%,color-mix(in_srgb,_var(--color-ink-950)_75%,_transparent))]" />
+          </div>
+
+          {/* headers: the journal hands over to the collection */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 mx-auto max-w-[1440px] px-5 pt-24 sm:px-8 lg:px-12">
+            <motion.div style={{ opacity: journalHead }} className="absolute inset-x-5 top-24 flex items-start justify-between sm:inset-x-8 lg:inset-x-12">
+              <div>
+                <p className="eyebrow text-hue-300">05 — Experience</p>
+                <h2 id="experience-title" className="mt-3 font-serif text-h2-pin italic text-paper">The field journal</h2>
+              </div>
+              {!compact && (
+                <p className="max-w-[260px] pt-1 text-right text-body-sm text-mist">
+                  Three chapters of growing as an engineer, kept the old-fashioned way.
+                </p>
+              )}
+            </motion.div>
+            <motion.div style={{ opacity: albumHead, y: albumHeadY }} className="absolute inset-x-5 top-24 flex items-start justify-between sm:inset-x-8 lg:inset-x-12">
+              <div>
+                <p className="eyebrow text-hue-300">06 — By the numbers{compact && ' · tap to turn'}</p>
+                <h2 className={`mt-3 font-serif italic text-paper ${compact ? 'text-[1.85rem] leading-none' : 'text-h2-pin'}`}>
+                  Collected along the way
+                </h2>
+              </div>
+              {!compact && (
+                <p className="max-w-[280px] pt-1 text-right text-body-sm text-mist">
+                  The places my work has travelled and the numbers worth keeping. Turn a stamp over to read its story.
+                </p>
+              )}
+            </motion.div>
+          </div>
+
+          {/* the book */}
+          <div className={`absolute left-1/2 ${compact ? 'top-[55%]' : 'top-[55.5%]'} h-0 w-0 [transform-style:preserve-3d]`}>
+            <motion.div style={{ transform }} className="absolute left-0 top-0 [transform-style:preserve-3d]" aria-label="Field journal">
+              <div className="absolute left-0 [transform-style:preserve-3d]" style={{ top: -PH / 2, width: PW, height: PH }}>
+                {/* shadow on the desk */}
+                <motion.div
+                  aria-hidden="true"
+                  style={{ left: shadowL, width: shadowW, transform: 'translateZ(-8px)' }}
+                  className="absolute -bottom-[14px] -top-[2px] rounded-[14px] bg-[color-mix(in_srgb,_var(--color-ink-950)_75%,_transparent)] blur-[22px]"
+                />
+                {!compact && (
+                  <div className="absolute left-[calc(100%+120px)] top-[60px]" style={{ transform: 'translateZ(2px) rotate(16deg)' }}>
+                    <div className="absolute left-[10px] top-[16px] h-[400px] w-[30px] rounded-full bg-[color-mix(in_srgb,_var(--color-ink-950)_60%,_transparent)] blur-[8px]" />
+                    <Pen />
+                  </div>
+                )}
+                {/* back board, inside back cover and its pocket */}
+                <div className="journal-cloth absolute left-0 rounded-r-[10px]" style={{ top: -9, width: BW, height: BH, transform: 'translateZ(-1px)' }} />
+                <BackBoard />
+                <motion.div
+                  aria-hidden="true"
+                  style={{ opacity: edges, transform: 'translateZ(0.1px)' }}
+                  className="pointer-events-none absolute inset-0 shadow-[1px_1px_0_var(--color-paper-2),2px_2px_0_var(--color-paper),3px_3px_0_var(--color-paper-2),4px_4px_0_var(--color-paper),5px_5px_0_var(--color-paper-2)]"
+                />
+                <span aria-hidden="true" className="absolute left-[8px] top-0 h-[calc(100%+46px)] w-[11px] bg-[linear-gradient(90deg,var(--hue-700),var(--hue-500)_45%,var(--hue-400)_60%,var(--hue-700))] [clip-path:polygon(0_0,100%_0,100%_100%,50%_calc(100%-9px),0_100%)]" style={{ transform: 'translateZ(0.2px)' }} />
+                <div className="absolute" style={{ left: POCKET.x, top: POCKET.y, width: POCKET.w, height: POCKET.h, transform: 'translateZ(1.2px)' }}>
+                  <Pocket />
+                </div>
+
+                {/* leaves, top of the stack last */}
+                <Leaf p={p} range={plan.leaves[4]} z={3} front={<EntryRight e={e3} on={level >= 7} n={6} />} back={<AlbumIntro on={level >= 8} n={7} />} />
+                <Leaf p={p} range={plan.leaves[3]} z={4} front={<EntryRight e={e2} on={level >= 5} n={4} />} back={<EntryLeft e={e3} on={level >= 6} n={5} />} />
+                <Leaf p={p} range={plan.leaves[2]} z={5} front={<EntryRight e={e1} on={level >= 3} n={2} />} back={<EntryLeft e={e2} on={level >= 4} n={3} />} />
+                <Leaf p={p} range={plan.leaves[1]} z={6} front={<TitlePage on={level >= 1} entries={ENTRIES} />} back={<EntryLeft e={e1} on={level >= 2} n={1} />} />
+                <Leaf p={p} range={plan.leaves[0]} z={7} board front={<CoverFront bandStyle={band} />} back={<Endpaper />} />
+
+                {/* the room dims as the stamps rise out of the pocket */}
+                <motion.div
+                  aria-hidden="true"
+                  style={{ opacity: dim, transform: 'translateZ(14px)' }}
+                  className="pointer-events-none absolute left-[-2400px] top-[-2400px] h-[5000px] w-[5000px] bg-[radial-gradient(closest-side,color-mix(in_srgb,_var(--color-ink-950)_55%,_transparent),color-mix(in_srgb,_var(--color-ink-950)_97%,_transparent)_60%)]"
+                />
+
+                {/* stamps */}
+                {STAMPS.map((s, i) => (
+                  <Stamp
+                    key={s.id}
+                    s={s}
+                    i={i}
+                    cT={cT}
+                    cfg={cfg}
+                    grid={grid}
+                    landed={landed}
+                    hovered={hovered === s.id}
+                    flipped={flipped.has(s.id)}
+                    onHover={setHovered}
+                    onFlip={flip}
+                  />
+                ))}
+              </div>
+            </motion.div>
+          </div>
+
+          {/* chapters */}
+          <nav aria-label="Journal chapters" className="absolute inset-x-0 bottom-5 z-10 flex justify-center px-3 sm:bottom-8">
+            <ol className="segmented flex-nowrap gap-0.5 sm:gap-1">
+              {plan.chapters.map(([label, at], i) => (
+                <li key={label}>
+                  <button
+                    type="button"
+                    onClick={() => goTo(at)}
+                    aria-current={chapter === i ? 'step' : undefined}
+                    className="segment max-sm:min-h-9 max-sm:px-2 max-sm:text-[12px]"
+                  >
+                    {!compact && <span aria-hidden="true" className="font-serif italic opacity-70">{['·', 'i', 'I', 'II', 'III', '✦'][i]}</span>}
+                    {label}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
+          <motion.p
+            style={{ opacity: hint }}
+            className={`pointer-events-none absolute inset-x-0 z-10 text-center font-mono text-eyebrow uppercase tracking-[0.24em] text-hue-300 ${compact ? 'bottom-[72px]' : 'bottom-[84px]'}`}
           >
-            Hover a stamp · click to turn it over
-          </p>
-        )}
-      </div>
+            Scroll to open the journal
+          </motion.p>
+          {!compact && (
+            <p
+              className={`pointer-events-none absolute inset-x-0 bottom-[80px] z-10 text-center font-mono text-eyebrow uppercase tracking-[0.24em] text-hue-300 transition-opacity duration-700 ${landed ? 'opacity-100' : 'opacity-0'}`}
+            >
+              Hover a stamp · click to turn it over
+            </p>
+          )}
+        </div>
     </section>
   )
 }

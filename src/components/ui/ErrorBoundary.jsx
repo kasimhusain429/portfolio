@@ -12,6 +12,7 @@ export class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("3D Scene Error:", error, errorInfo)
+    this.props.onError?.(error)
   }
 
   render() {

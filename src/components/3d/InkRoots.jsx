@@ -60,7 +60,7 @@ const PAPER_VERT = /* glsl */ `
 `
 const PAPER_FRAG = /* glsl */ `
   uniform vec2 uSize, uImpactAt;
-  uniform float uTime, uImpact;
+  uniform float uTime, uImpact, uFlood;
   ${COLORS}
   varying vec2 vP;
   ${NOISE}
@@ -93,11 +93,11 @@ const PAPER_FRAG = /* glsl */ `
     col = mix(col, cHya, smoothstep(R * 0.72, R * 0.95, d) * (1.0 - smoothstep(R * 0.95, R * 1.03, d)) * 0.4 * on);
 
     // ink floods the bottom: teal deepens into the next section's night ink
-    float b = uSize.y - p.y + (fbm(vec2(p.x * 0.004, 9.0)) - 0.5) * 140.0;
-    col = mix(col, cCorn, (1.0 - smoothstep(140.0, 620.0, b)) * 0.9);
-    col = mix(col, cNavy, 1.0 - smoothstep(120.0, 420.0, b));
-    // pure night ink along the whole bottom edge (b wobbles ±70px with the noise), so it meets the sky below seamlessly
-    col = mix(col, cDeep, 1.0 - smoothstep(80.0, 340.0, b));
+    float b = uSize.y - p.y + (fbm(vec2(p.x * 0.004, 9.0)) - 0.5) * (uFlood * 0.36);
+    col = mix(col, cCorn, (1.0 - smoothstep(uFlood * 0.35, uFlood * 1.15, b)) * 0.85);
+    col = mix(col, cNavy, 1.0 - smoothstep(uFlood * 0.28, uFlood * 0.8, b));
+    // pure night ink along the whole bottom edge so it meets the sky below seamlessly
+    col = mix(col, cDeep, 1.0 - smoothstep(uFlood * 0.2, uFlood * 0.6, b));
 
     col += (hash(gl_FragCoord.xy + uTime) - 0.5) / 255.0;
     gl_FragColor = vec4(col, a);
@@ -319,6 +319,7 @@ function InkWorld() {
         uSize: { value: new THREE.Vector2(geom.w, geom.h) },
         uImpactAt: { value: new THREE.Vector2(geom.trunkX, 0) },
         uImpact: { value: 0 },
+        uFlood: { value: mobile ? 200 : 320 },
       },
       0,
     )
@@ -479,7 +480,7 @@ function InkWorld() {
       const p = clamp01((ty - b.y0) / b.span)
       const r = built.branches[i]
       r.mesh.material.uniforms.uGrow.value = p > 0 ? p * r.L + 6 : -40
-      return p > 0.9
+      return p > 0.82
     })
     geom.rootlets.forEach((rl, i) => {
       const p = clamp01((ty - rl.y0) / rl.span)

@@ -15,6 +15,7 @@ import { PerformanceMonitor, Preload } from '@react-three/drei'
 import { useDevice } from '../../hooks/useDevice'
 import { ErrorBoundary } from '../ui/ErrorBoundary'
 import { useBloom } from '../../lib/bloomStore'
+import { setInkFailed } from '../../lib/inkStore'
 
 // Lazy-load heavy 3D scenes
 // Start fetching the hero scene immediately (it is visible on first paint)
@@ -81,18 +82,18 @@ function SceneContents() {
       </ErrorBoundary>
 
       {/* About: Ink Bloom layer (HUD pass, also on mobile) */}
-      <ErrorBoundary>
-        <Suspense fallback={null}>{visible.has('about') && <InkRoots />}</Suspense>
-      </ErrorBoundary>
+        <ErrorBoundary onError={setInkFailed}>
+          <Suspense fallback={null}>{visible.has('about') && <InkRoots />}</Suspense>
+        </ErrorBoundary>
 
-      {/* (No post-processing: the ink layer renders its own HUD pass on top) */}
+        {/* (No post-processing: the ink layer renders its own HUD pass on top) */}
 
-      <Preload all />
-    </>
-  )
+        <Preload all />
+      </>
+      )
 }
 
-export default function SceneManager() {
+      export default function SceneManager() {
   const device = useDevice()
   const ready = useBloom((s) => s.ready)
 
@@ -101,49 +102,49 @@ export default function SceneManager() {
   useEffect(() => {
     if (!ready || !device?.is3DEnabled) return
     const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 1200))
-    const cancel = window.cancelIdleCallback || clearTimeout
-    const id = idle(() => import('./InkRoots'), { timeout: 4000 })
+      const cancel = window.cancelIdleCallback || clearTimeout
+    const id = idle(() => import('./InkRoots'), {timeout: 4000 })
     return () => cancel(id)
   }, [ready, device])
 
-  // Adaptive resolution: start crisp, step down if the frame rate struggles
-  const maxDpr = Math.min(window.devicePixelRatio || 1, device?.tier === 1 ? 2 : 1.5)
-  const [dpr, setDpr] = useState(maxDpr)
+      // Adaptive resolution: start crisp, step down if the frame rate struggles
+      const maxDpr = Math.min(window.devicePixelRatio || 1, device?.tier === 1 ? 2 : 1.5)
+      const [dpr, setDpr] = useState(maxDpr)
 
-  // Don't render Canvas on low-end devices or if WebGL is unavailable
-  if (!device || !device.is3DEnabled) return null
+      // Don't render Canvas on low-end devices or if WebGL is unavailable
+      if (!device || !device.is3DEnabled) return null
 
-  return (
-    <div
-      className="pointer-events-none fixed inset-0 z-0"
-      style={{ isolation: 'isolate' }}
-      aria-hidden="true"
-    >
-      <Canvas
-        eventSource={document.getElementById('root')}
-        eventPrefix="client"
-        dpr={dpr}
-        camera={{ position: [0, 0, 8], fov: 55, near: 0.1, far: 200 }}
-        gl={{
-          antialias: device.config.antialias,
-          alpha: true,
-          powerPreference: device.isMobile ? 'low-power' : 'high-performance',
-          stencil: false,
-          localClippingEnabled: true, // hero name reveal uses clipping planes
-          depth: true,
-        }}
-        style={{ background: "transparent" }}
-        flat
+      return (
+      <div
+        className="pointer-events-none fixed inset-0 z-0"
+        style={{ isolation: 'isolate' }}
+        aria-hidden="true"
       >
-        <PerformanceMonitor
-          flipflops={3}
-          onDecline={() => setDpr(1)}
-          onIncline={() => setDpr(maxDpr)}
-          onFallback={() => setDpr(1)}
+        <Canvas
+          eventSource={document.getElementById('root')}
+          eventPrefix="client"
+          dpr={dpr}
+          camera={{ position: [0, 0, 8], fov: 55, near: 0.1, far: 200 }}
+          gl={{
+            antialias: device.config.antialias,
+            alpha: true,
+            powerPreference: device.isMobile ? 'low-power' : 'high-performance',
+            stencil: false,
+            localClippingEnabled: true, // hero name reveal uses clipping planes
+            depth: true,
+          }}
+          style={{ background: "transparent" }}
+          flat
         >
-          <SceneContents />
-        </PerformanceMonitor>
-      </Canvas>
-    </div>
-  )
+          <PerformanceMonitor
+            flipflops={3}
+            onDecline={() => setDpr(1)}
+            onIncline={() => setDpr(maxDpr)}
+            onFallback={() => setDpr(1)}
+          >
+            <SceneContents />
+          </PerformanceMonitor>
+        </Canvas>
+      </div>
+      )
 }

@@ -13,6 +13,7 @@ const prefersReduced = () => typeof window !== 'undefined' && window.matchMedia?
 
 export function SmoothScrollProvider({ children }) {
   const lenisRef = useRef(null)
+  const scrollListeners = useRef(new Set())
 
   useEffect(() => {
     const reduce = prefersReduced()
@@ -27,6 +28,9 @@ export function SmoothScrollProvider({ children }) {
       infinite: false,
     })
     lenisRef.current = lenis
+    const offScroll = lenis.on('scroll', () => {
+      scrollListeners.current.forEach((cb) => cb())
+    })
 
     let rafId = requestAnimationFrame(function raf(time) {
       lenis.raf(time)
@@ -35,6 +39,7 @@ export function SmoothScrollProvider({ children }) {
 
     return () => {
       cancelAnimationFrame(rafId)
+      offScroll?.()
       lenis.destroy()
       lenisRef.current = null
     }
@@ -52,7 +57,11 @@ export function SmoothScrollProvider({ children }) {
 
   const stop = useCallback(() => lenisRef.current?.stop(), [])
   const start = useCallback(() => lenisRef.current?.start(), [])
-  const value = useMemo(() => ({ lenis: lenisRef, scrollTo, stop, start }), [scrollTo, stop, start])
+  const onScroll = useCallback((cb) => {
+    scrollListeners.current.add(cb)
+    return () => scrollListeners.current.delete(cb)
+  }, [])
+  const value = useMemo(() => ({ lenis: lenisRef, scrollTo, stop, start, onScroll }), [scrollTo, stop, start, onScroll])
 
   return <SmoothScrollContext.Provider value={value}>{children}</SmoothScrollContext.Provider>
 }

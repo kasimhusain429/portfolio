@@ -46,9 +46,15 @@ export default function Navbar() {
 
   const onNav = (href) => (e) => {
     e?.preventDefault()
-    setOpen(false)
-    if (smoothScroll?.scrollTo) smoothScroll.scrollTo(href, { offset: href === '#home' ? 0 : -80 })
-    else document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' })
+    if (open) {
+      document.body.style.overflow = ''
+      smoothScroll?.start?.()
+      setOpen(false)
+    }
+    requestAnimationFrame(() => {
+      if (smoothScroll?.scrollTo) smoothScroll.scrollTo(href, { offset: href === '#home' ? 0 : -80 })
+      else document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' })
+    })
   }
 
   const light = onLight && !open
@@ -76,9 +82,8 @@ export default function Navbar() {
       </a>
 
       <div
-        className={`container-page flex items-center justify-between py-4 transition-[background-color,backdrop-filter] duration-500 md:py-5 ${
-          scrolled && !open && (!onLight || pastHero) ? 'bg-(--nav-bg)/72 backdrop-blur-lg' : ''
-        }`}
+        className={`container-page flex items-center justify-between py-4 transition-[background-color,backdrop-filter] duration-500 md:py-5 ${scrolled && !open && (!onLight || pastHero) ? 'bg-(--nav-bg)/72 backdrop-blur-lg' : ''
+          }`}
         style={{ maxWidth: 'none' }}
       >
         <a
@@ -99,16 +104,14 @@ export default function Navbar() {
                 href={l.href}
                 onClick={onNav(l.href)}
                 aria-current={isActive ? 'true' : undefined}
-                className={`group relative py-1.5 text-[0.95rem] transition-colors duration-300 ${
-                  isActive ? 'text-(--nav-fg)' : 'text-(--nav-soft) hover:text-(--nav-fg)'
-                }`}
+                className={`group relative py-1.5 text-[0.95rem] transition-colors duration-300 ${isActive ? 'text-(--nav-fg)' : 'text-(--nav-soft) hover:text-(--nav-fg)'
+                  }`}
               >
                 {l.label}
                 <span
                   aria-hidden="true"
-                  className={`absolute -bottom-0.5 left-0 h-[2px] w-full origin-left rounded-full bg-(--nav-accent) transition-[transform,background-color] duration-500 ease-[cubic-bezier(.16,1,.3,1)] ${
-                    isActive ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'
-                  }`}
+                  className={`absolute -bottom-0.5 left-0 h-[2px] w-full origin-left rounded-full bg-(--nav-accent) transition-[transform,background-color] duration-500 ease-[cubic-bezier(.16,1,.3,1)] ${isActive ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'
+                    }`}
                 />
               </a>
             )
@@ -132,14 +135,12 @@ export default function Navbar() {
         >
           <span aria-hidden="true" className="relative block h-3 w-4">
             <span
-              className={`absolute left-0 h-[1.5px] w-4 rounded-full bg-current transition-transform duration-300 ${
-                open ? 'top-1.5 rotate-45' : 'top-0.5'
-              }`}
+              className={`absolute left-0 h-[1.5px] w-4 rounded-full bg-current transition-transform duration-300 ${open ? 'top-1.5 rotate-45' : 'top-0.5'
+                }`}
             />
             <span
-              className={`absolute left-0 h-[1.5px] w-4 rounded-full bg-current transition-transform duration-300 ${
-                open ? 'top-1.5 -rotate-45' : 'top-2.5'
-              }`}
+              className={`absolute left-0 h-[1.5px] w-4 rounded-full bg-current transition-transform duration-300 ${open ? 'top-1.5 -rotate-45' : 'top-2.5'
+                }`}
             />
           </span>
           {open ? 'Close' : 'Menu'}

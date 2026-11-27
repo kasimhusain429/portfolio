@@ -9,6 +9,7 @@ export const ink = {
   section: null, // the About <section> element
   geom: null, // { w, h, endY, trunkX, trunkPts, branches[], rootlets[], blooms[] }
   version: 0,
+  failed: false, // true if WebGL InkRoots failed to load or threw
   hover: -1, // bloom index under the pointer (0 = portrait, 1..4 = roots)
   mouse: { x: -9999, y: -9999 }, // section coordinates
   stir: 0, // 0..1, decays
@@ -23,6 +24,12 @@ export function setInkGeom(section, geom) {
   ink.section = section
   ink.geom = geom
   ink.version += 1
+  listeners.forEach((l) => l())
+}
+
+export function setInkFailed() {
+  if (ink.failed) return
+  ink.failed = true
   listeners.forEach((l) => l())
 }
 
