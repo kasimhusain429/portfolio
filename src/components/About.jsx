@@ -370,62 +370,65 @@ export default function About() {
       window.removeEventListener('resize', schedule)
       window.visualViewport?.removeEventListener('resize', schedule)
     }
-}, [geom, reduce, webgl, smooth])
+  }, [geom, reduce, webgl, smooth])
 
-// Stir the ink with the pointer; click to drop pigment
-useEffect(() => {
-  const section = sectionRef.current
-  if (!section || reduce) return
-  let lx = 0
-  let ly = 0
-  const onMove = (e) => {
-    const r = section.getBoundingClientRect()
-    const x = e.clientX - r.left
-    const y = e.clientY - r.top
-    const speed = Math.hypot(x - lx, y - ly)
-    lx = x
-    ly = y
-    ink.mouse.x = x
-    ink.mouse.y = y
-    ink.stir = Math.min(1, ink.stir + speed * 0.006)
+  // Stir the ink with the pointer; click to drop pigment
+  useEffect(() => {
+    const section = sectionRef.current
+    if (!section || reduce) return
+    let lx = 0
+    let ly = 0
+    const onMove = (e) => {
+      const r = section.getBoundingClientRect()
+      const x = e.clientX - r.left
+      const y = e.clientY - r.top
+      const speed = Math.hypot(x - lx, y - ly)
+      lx = x
+      ly = y
+      ink.mouse.x = x
+      ink.mouse.y = y
+      ink.stir = Math.min(1, ink.stir + speed * 0.006)
+    }
+    const onClick = (e) => {
+      if (e.target.closest('a, button')) return
+      const r = section.getBoundingClientRect()
+      ink.drops.push({ x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() })
+      if (ink.drops.length > 6) ink.drops.shift()
+    }
+    section.addEventListener('pointermove', onMove, { passive: true })
+    section.addEventListener('click', onClick)
+    return () => {
+      section.removeEventListener('pointermove', onMove)
+      section.removeEventListener('click', onClick)
+    }
+  }, [reduce])
+
+  const goWork = (e) => {
+    e.preventDefault()
+    if (smooth?.scrollTo) smooth.scrollTo('#projects', { offset: -80 })
+    else document.getElementById('projects')?.scrollIntoView()
   }
-  const onClick = (e) => {
-    if (e.target.closest('a, button')) return
-    const r = section.getBoundingClientRect()
-    ink.drops.push({ x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() })
-    if (ink.drops.length > 6) ink.drops.shift()
+  const goContact = (e) => {
+    e.preventDefault()
+    if (smooth?.scrollTo) smooth.scrollTo('#contact', { offset: -80 })
+    else document.getElementById('contact')?.scrollIntoView()
   }
-  section.addEventListener('pointermove', onMove, { passive: true })
-  section.addEventListener('click', onClick)
-  return () => {
-    section.removeEventListener('pointermove', onMove)
-    section.removeEventListener('click', onClick)
-  }
-}, [reduce])
 
-const goWork = (e) => {
-  e.preventDefault()
-  if (smooth?.scrollTo) smooth.scrollTo('#projects', { offset: -80 })
-  else document.getElementById('projects')?.scrollIntoView()
-}
-const goContact = (e) => {
-  e.preventDefault()
-  if (smooth?.scrollTo) smooth.scrollTo('#contact', { offset: -80 })
-  else document.getElementById('contact')?.scrollIntoView()
-}
+  const anchorDot = (on) =>
+    `block h-3 w-3 rounded-full border-2 transition-all duration-700 ${
+      on
+        ? 'border-paper bg-ink-900 shadow-[0_0_0_4px_color-mix(in_srgb,_var(--hue-500)_28%,_transparent),0_6px_14px_-4px_color-mix(in_srgb,_var(--color-ink)_60%,_transparent)]'
+        : 'border-hue-500/40 bg-paper'
+    }`
 
-const anchorDot = (on) =>
-  `block h-3 w-3 rounded-full border-2 transition-all duration-700 ${on
-    ? 'border-paper bg-ink-900 shadow-[0_0_0_4px_color-mix(in_srgb,_var(--hue-500)_28%,_transparent),0_6px_14px_-4px_color-mix(in_srgb,_var(--color-ink)_60%,_transparent)]'
-    : 'border-hue-500/40 bg-paper'
-  }`
-
-return (
-  <section
-    id="about"
-    data-hue="teal"
-    ref={sectionRef}
-    aria-labelledby="about-title"
+  return (
+    <section
+      id="about"
+      data-hue="teal"
+      ref={sectionRef}
+      aria-labelledby="about-title"
+      className={`relative overflow-hidden pb-[210px] pt-[20vh] sm:pb-[260px] md:pb-[340px] md:pt-[28vh] ${
+        webgl
           ? 'bg-transparent'
           : 'bg-[linear-gradient(180deg,var(--color-iris-300)_0%,var(--color-paper-2)_8%,var(--color-paper)_46%,var(--color-paper-2)_78%,var(--hue-500)_91%,var(--color-ink-900)_98%)]'
       }`}
@@ -437,13 +440,13 @@ return (
           className="pointer-events-none absolute left-0 top-0"
           width={geom.w}
           height={geom.h}
-          viewBox={`0 0 ${ geom.w } ${ geom.h } `}
+          viewBox={`0 0 ${geom.w} ${geom.h}`}
           fill="none"
           strokeLinecap="round"
         >
           {geom.rootlets.map((r, i) => (
             <path
-              key={`r${ i } `}
+              key={`r${i}`}
               ref={(el) => {
                 rootletRefs.current[i] = el
               }}
@@ -550,13 +553,13 @@ return (
                 <li key={root.key} className="md:grid md:grid-cols-2 md:gap-x-48">
                   <div
                     data-bloom={i + 1}
-                    className={`relative w - full max - w - [460px] ${
-  left ? 'md:col-start-1 md:justify-self-end' : 'md:col-start-2 md:justify-self-start'
-} `}
+                    className={`relative w-full max-w-[460px] ${
+                      left ? 'md:col-start-1 md:justify-self-end' : 'md:col-start-2 md:justify-self-start'
+                    }`}
                   >
                     <span
                       data-root={root.key}
-                      className={`absolute top - 10 - left - [33px] ${ left ? 'md:left-auto md:-right-[33px]' : 'md:-left-[33px]' } `}
+                      className={`absolute top-10 -left-[33px] ${left ? 'md:left-auto md:-right-[33px]' : 'md:-left-[33px]'}`}
                     >
                       <span className={anchorDot(active[i + 1])} />
                     </span>
