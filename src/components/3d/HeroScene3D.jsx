@@ -26,7 +26,7 @@ import { makePetalMaterial, PETAL_TONE } from './bloom/petalMaterial'
 
 // Iris is the hero's hue, and the whole flower stays inside it
 const PAL = { navy: palette.iris[700], corn: palette.iris[500], peri: palette.iris[300], pearl: palette.paper.base }
-const PETAL_PROJECTS = ['house-of-clio', 'house-of-ethnics', 'nxt-digital', 'darryl-montgomery']
+const PETAL_PROJECTS = ['halcyon-residency', 'vaelis', 'luma-dental', 'dronefuze']
 const CAM_Z = 8
 const NAME_Z = -0.6
 

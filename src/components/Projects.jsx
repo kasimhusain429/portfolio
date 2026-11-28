@@ -218,7 +218,7 @@ function WebRoom() {
                 rel="noreferrer"
                 onMouseEnter={() => setActive(i)}
                 onFocus={() => setActive(i)}
-                className="group relative flex items-baseline gap-6 py-7 outline-none"
+                className="group relative flex items-baseline gap-6 py-5 outline-none"
               >
                 <span className={`font-mono text-xs transition-colors ${active === i ? 'text-hue-400' : 'text-haze'}`}>
                   {pad2(i + 1)}

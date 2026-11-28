@@ -18,10 +18,10 @@ const EASE = MOTION.out
 const ramp = (from, to) => (v) => 1 - Math.min(1, Math.max(0, (v - from) / (to - from)))
 
 const PREVIEW_IMG = {
-  'house-of-clio': '/bloom/clio.webp',
-  'house-of-ethnics': '/bloom/ethnics.webp',
-  'nxt-digital': '/bloom/nxt.webp',
-  'darryl-montgomery': '/bloom/darryl.webp',
+  'halcyon-residency': '/bloom/halcyon-residency.webp',
+  'vaelis': '/bloom/vaelis.webp',
+  'luma-dental': '/bloom/luma-dental.webp',
+  'dronefuze': '/bloom/dronefuze.webp',
 }
 
 /**
